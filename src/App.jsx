@@ -1,124 +1,700 @@
-import React, { useState } from 'react';
-import { Gamepad2, Mic, BarChart3, Palette, CheckCircle2, Trophy, Rocket, Info, X, PlayCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import {
+  Gamepad2, Mic, BarChart3, Palette, CheckCircle2, Trophy, Rocket, Info, X, PlayCircle,
+  Star, Gift, Swords, Users, User, Sparkles, Zap, Shield, Crown, Target, Package
+} from 'lucide-react';
+import { useGameState } from './hooks/useGameState';
+import {
+  LEVELS, ACHIEVEMENTS, GUILDS, AVATAR_ITEMS, BOSS_CHALLENGES, LEARNING_PATHS
+} from './data/gameData';
 
-const App = () => {
-  const [selectedPath, setSelectedPath] = useState({ path1: null, path2: null, path3: null });
-  const [showInfo, setShowInfo] = useState(false);
-  const [activeInstruction, setActiveInstruction] = useState(null);
+// Icon mapping for dynamic rendering
+const IconMap = { Mic, BarChart3, Palette };
 
-  const paths = [
-    {
-      id: 'path1',
-      title: 'The Wordsmith',
-      subtitle: 'Vocabulary Quest',
-      icon: <Mic className="w-6 h-6" />,
-      color: 'bg-blue-600',
-      options: [
-        {
-          id: '1a',
-          title: 'Voice Battle',
-          desc: 'Record yourself defining 5 unit words.',
-          type: 'High Tech',
-          steps: [
-            "Open your voice recording tool (like Vocaroo or Mote).",
-            "Read the word clearly, then explain it in your own words.",
-            "Use the 'Pro Tip' below to earn extra XP!",
-            "Submit the link to your teacher."
-          ],
-          proTip: "Try to use the word in a sentence about your favorite video game for a bonus!"
-        },
-        {
-          id: '1b',
-          title: 'Word Sketch',
-          desc: 'Draw a visual representation of 3 complex terms.',
-          type: 'Low Tech',
-          steps: [
-            "Grab a blank piece of paper and divide it into three sections.",
-            "Write the vocabulary word at the top of each section.",
-            "Draw a picture that shows the word's meaning without using letters.",
-            "Write one sentence underneath explaining your drawing."
-          ],
-          proTip: "Use colors that match the 'mood' of the word (e.g., bright colors for 'energetic')."
-        }
-      ]
-    },
-    {
-      id: 'path2',
-      title: 'The Data Scientist',
-      subtitle: 'Progress Mission',
-      icon: <BarChart3 className="w-6 h-6" />,
-      color: 'bg-purple-600',
-      options: [
-        {
-          id: '2a',
-          title: 'Goal Tracker',
-          desc: 'Update your Lexia/Math chart.',
-          type: 'Self-Reflection',
-          steps: [
-            "Open your data folder and find your progress chart.",
-            "Check your minutes/units for this week.",
-            "Color in your progress bar to show where you are.",
-            "Identify one 'Power Move' (a specific action) to reach your goal by Friday."
-          ],
-          proTip: "A Power Move is specific, like 'I will complete 2 units before lunch.'"
-        },
-        {
-          id: '2b',
-          title: 'Peer Interview',
-          desc: 'Ask a friend how they beat a hard level today.',
-          type: 'Collaboration',
-          steps: [
-            "Find a partner who has finished their 'Must-Do' work.",
-            "Ask: 'What was the hardest part of your work today, and how did you push through?'",
-            "Write down or record their strategy.",
-            "Thank your partner for the 'Pro Tip'!"
-          ],
-          proTip: "Listen for 'Growth Mindset' words like 'practiced,' 'tried again,' or 'focused.'"
-        }
-      ]
-    },
-    {
-      id: 'path3',
-      title: 'The Creator',
-      subtitle: 'Expression Boss',
-      icon: <Palette className="w-6 h-6" />,
-      color: 'bg-orange-600',
-      options: [
-        {
-          id: '3a',
-          title: 'Tutorial Video',
-          desc: 'Film a 60-second "How-To" for a 4th grader.',
-          type: 'High Tech',
-          steps: [
-            "Choose a topic from today's lesson that you understand well.",
-            "Write a 3-sentence script: Hook, Explanation, and Summary.",
-            "Record your video using a camera or screen-recording tool.",
-            "Make sure your voice is clear and you show examples!"
-          ],
-          proTip: "Imagine you are a YouTuber! Start with an exciting intro."
-        },
-        {
-          id: '3b',
-          title: 'Boss Map',
-          desc: 'Sketch the steps to solve a big problem.',
-          type: 'Low Tech',
-          steps: [
-            "Identify the 'Final Boss' (the hardest problem in the unit).",
-            "Draw a 'Map' that shows the path to solving it.",
-            "Include 'Checkpoints' for each step of the work.",
-            "Label any 'Traps' (common mistakes) to avoid!"
-          ],
-          proTip: "Make it look like a real game map with start and finish lines."
-        }
-      ]
-    }
+// ============== PLAYER STATS BAR ==============
+function PlayerStats({ gameState, getCurrentLevel, getNextLevelXp, onOpenProfile, onOpenMysteryBox }) {
+  const currentLevel = getCurrentLevel();
+  const nextLevelXp = getNextLevelXp();
+  const progress = ((gameState.xp - currentLevel.xpRequired) / (nextLevelXp - currentLevel.xpRequired)) * 100;
+
+  return (
+    <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        {/* Avatar & Name */}
+        <button onClick={onOpenProfile} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+          <div className={`w-12 h-12 rounded-full ${AVATAR_ITEMS.colors.find(c => c.id === gameState.avatar.color)?.value || 'bg-blue-500'} flex items-center justify-center text-2xl relative`}>
+            {AVATAR_ITEMS.faces.find(f => f.id === gameState.avatar.face)?.emoji || '😊'}
+            {gameState.avatar.hat !== 'none' && (
+              <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-lg">
+                {AVATAR_ITEMS.hats.find(h => h.id === gameState.avatar.hat)?.emoji}
+              </span>
+            )}
+          </div>
+          <div className="text-left">
+            <p className="font-bold text-white">{gameState.playerName || 'Player'}</p>
+            <p className={`text-sm font-bold ${currentLevel.color}`}>Lv.{currentLevel.level} {currentLevel.title}</p>
+          </div>
+        </button>
+
+        {/* XP Bar */}
+        <div className="flex-1 min-w-[200px] max-w-md">
+          <div className="flex justify-between text-xs mb-1">
+            <span className="text-slate-400">XP</span>
+            <span className="text-yellow-500 font-bold">{gameState.xp} / {nextLevelXp}</span>
+          </div>
+          <div className="h-3 bg-slate-700 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-yellow-500 to-yellow-400 transition-all duration-500"
+              style={{ width: `${Math.min(progress, 100)}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1 text-yellow-400">
+            <Star className="w-5 h-5 fill-yellow-400" />
+            <span className="font-bold">{gameState.coins}</span>
+          </div>
+          <div className="flex items-center gap-1 text-orange-400">
+            <Zap className="w-5 h-5" />
+            <span className="font-bold">{gameState.currentStreak}</span>
+          </div>
+          {gameState.pendingMysteryBoxes > 0 && (
+            <button
+              onClick={onOpenMysteryBox}
+              className="flex items-center gap-1 bg-purple-600 hover:bg-purple-500 px-3 py-1 rounded-lg animate-pulse"
+            >
+              <Gift className="w-5 h-5" />
+              <span className="font-bold">{gameState.pendingMysteryBoxes}</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Active Buffs */}
+      {(gameState.doubleXpActive || gameState.streakShieldActive) && (
+        <div className="flex gap-2 mt-3 pt-3 border-t border-slate-700">
+          {gameState.doubleXpActive && (
+            <span className="text-xs bg-pink-600/30 text-pink-300 px-2 py-1 rounded-full flex items-center gap-1">
+              <Sparkles className="w-3 h-3" /> 2x XP Active
+            </span>
+          )}
+          {gameState.streakShieldActive && (
+            <span className="text-xs bg-orange-600/30 text-orange-300 px-2 py-1 rounded-full flex items-center gap-1">
+              <Shield className="w-3 h-3" /> Streak Protected
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============== DAILY QUEST BANNER ==============
+function DailyQuestBanner({ quest, completed }) {
+  return (
+    <div className={`mb-6 p-4 rounded-xl border-2 ${completed ? 'bg-green-900/30 border-green-600' : 'bg-gradient-to-r from-purple-900/50 to-blue-900/50 border-purple-500'}`}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className={`p-2 rounded-lg ${completed ? 'bg-green-600' : 'bg-purple-600'}`}>
+            <Target className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-purple-300">Daily Quest</p>
+            <p className="font-bold text-white">{quest.title}</p>
+            <p className="text-sm text-slate-400">{quest.desc}</p>
+          </div>
+        </div>
+        <div className="text-right">
+          {completed ? (
+            <span className="text-green-400 font-bold flex items-center gap-1">
+              <CheckCircle2 className="w-5 h-5" /> Complete!
+            </span>
+          ) : (
+            <span className="text-yellow-400 font-bold">{quest.multiplier}x XP</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============== GUILD PANEL ==============
+function GuildPanel({ currentGuild, onJoinGuild, guildXp }) {
+  const [showGuilds, setShowGuilds] = useState(false);
+
+  if (!currentGuild) {
+    return (
+      <div className="mb-6">
+        <button
+          onClick={() => setShowGuilds(true)}
+          className="w-full p-4 bg-slate-800 border-2 border-dashed border-slate-600 rounded-xl hover:border-slate-500 transition-colors"
+        >
+          <div className="flex items-center justify-center gap-2 text-slate-400">
+            <Users className="w-5 h-5" />
+            <span className="font-bold">Join a Guild to compete with friends!</span>
+          </div>
+        </button>
+
+        {showGuilds && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+            <div className="bg-slate-800 border-2 border-yellow-500 rounded-2xl max-w-lg w-full p-6">
+              <h3 className="text-2xl font-black uppercase italic mb-6 text-center">Choose Your Guild</h3>
+              <div className="grid grid-cols-2 gap-4">
+                {GUILDS.map(guild => (
+                  <button
+                    key={guild.id}
+                    onClick={() => { onJoinGuild(guild.id); setShowGuilds(false); }}
+                    className={`p-4 rounded-xl ${guild.color} hover:opacity-90 transition-opacity text-left`}
+                  >
+                    <span className="text-3xl">{guild.emoji}</span>
+                    <p className="font-black mt-2">{guild.name}</p>
+                    <p className="text-xs opacity-80">{guild.motto}</p>
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setShowGuilds(false)}
+                className="w-full mt-4 py-2 bg-slate-700 rounded-lg text-slate-400 hover:text-white"
+              >
+                Maybe Later
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const guild = GUILDS.find(g => g.id === currentGuild);
+
+  return (
+    <div className={`mb-6 p-4 rounded-xl ${guild.color} bg-opacity-30 border border-opacity-50 ${guild.color.replace('bg-', 'border-')}`}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-3xl">{guild.emoji}</span>
+          <div>
+            <p className="font-black text-white">{guild.name}</p>
+            <p className="text-xs opacity-80">{guild.motto}</p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-slate-400">Your Contribution</p>
+          <p className="font-bold text-yellow-400">{guildXp} XP</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============== BOSS CHALLENGE ==============
+function BossChallenge({ completedBosses, onComplete }) {
+  const [showBoss, setShowBoss] = useState(false);
+  const today = new Date();
+  const weekOfYear = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / 604800000);
+  const currentBoss = BOSS_CHALLENGES[weekOfYear % BOSS_CHALLENGES.length];
+  const isCompleted = completedBosses.includes(currentBoss.id);
+
+  return (
+    <>
+      <button
+        onClick={() => setShowBoss(true)}
+        className={`mb-6 w-full p-4 rounded-xl border-2 ${isCompleted ? 'bg-slate-800 border-slate-700' : 'bg-gradient-to-r from-red-900/50 to-orange-900/50 border-red-500 animate-pulse'}`}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-lg ${isCompleted ? 'bg-slate-700' : 'bg-red-600'}`}>
+              <Swords className="w-6 h-6" />
+            </div>
+            <div className="text-left">
+              <p className="text-xs font-bold uppercase tracking-widest text-red-400">Weekly Boss</p>
+              <p className="font-black text-white">{currentBoss.name}</p>
+            </div>
+          </div>
+          {isCompleted ? (
+            <span className="text-green-400 font-bold flex items-center gap-1">
+              <Crown className="w-5 h-5" /> Defeated!
+            </span>
+          ) : (
+            <span className="text-yellow-400 font-bold">+{currentBoss.reward} XP</span>
+          )}
+        </div>
+      </button>
+
+      {showBoss && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+          <div className="bg-slate-800 border-2 border-red-500 rounded-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
+            <button onClick={() => setShowBoss(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white">
+              <X className="w-6 h-6" />
+            </button>
+
+            <div className="text-center mb-6">
+              <div className="text-6xl mb-4">👹</div>
+              <h3 className="text-2xl font-black uppercase italic text-red-400">{currentBoss.name}</h3>
+              <p className="text-slate-400 mt-2">{currentBoss.desc}</p>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              <h4 className="font-bold text-slate-300 uppercase text-xs tracking-widest">Battle Plan:</h4>
+              <ol className="space-y-3">
+                {currentBoss.steps.map((step, idx) => (
+                  <li key={idx} className="flex gap-3 text-slate-300">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-red-900 text-red-400 flex items-center justify-center text-xs font-bold">
+                      {idx + 1}
+                    </span>
+                    <span className="text-sm">{step}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+
+            <div className="bg-yellow-500/20 border border-yellow-500/30 p-4 rounded-xl mb-6">
+              <p className="text-sm text-yellow-200">
+                <strong>Reward:</strong> {currentBoss.reward} XP + Mystery Box + Achievement
+              </p>
+            </div>
+
+            {!isCompleted ? (
+              <button
+                onClick={() => { onComplete(currentBoss.id, currentBoss.reward); setShowBoss(false); }}
+                className="w-full py-3 bg-red-600 hover:bg-red-500 text-white font-black uppercase italic rounded-xl transition-colors"
+              >
+                Mark as Complete
+              </button>
+            ) : (
+              <div className="text-center text-green-400 font-bold py-3">
+                <CheckCircle2 className="w-6 h-6 inline mr-2" />
+                Boss Defeated! Come back next week.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ============== ACHIEVEMENT TROPHY CASE ==============
+function TrophyCase({ achievements, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+      <div className="bg-slate-800 border-2 border-yellow-500 rounded-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-2xl font-black uppercase italic flex items-center gap-2">
+            <Trophy className="w-8 h-8 text-yellow-500" /> Trophy Case
+          </h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-white">
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {ACHIEVEMENTS.map(achievement => {
+            const unlocked = achievements.includes(achievement.id);
+            return (
+              <div
+                key={achievement.id}
+                className={`p-4 rounded-xl border-2 text-center transition-all ${
+                  unlocked
+                    ? 'bg-slate-700 border-yellow-500'
+                    : 'bg-slate-800/50 border-slate-700 opacity-50'
+                }`}
+              >
+                <div className={`text-4xl mb-2 ${unlocked ? '' : 'grayscale'}`}>
+                  {achievement.icon}
+                </div>
+                <p className="font-bold text-sm">{achievement.title}</p>
+                <p className="text-xs text-slate-400 mt-1">{achievement.desc}</p>
+                {unlocked && (
+                  <p className="text-xs text-yellow-500 mt-2">+{achievement.xpReward} XP</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============== AVATAR BUILDER ==============
+function AvatarBuilder({ gameState, onBuy, onEquip, onClose, onSetName }) {
+  const [activeTab, setActiveTab] = useState('colors');
+  const [editingName, setEditingName] = useState(false);
+  const [tempName, setTempName] = useState(gameState.playerName);
+
+  const tabs = [
+    { id: 'colors', label: 'Colors' },
+    { id: 'hats', label: 'Hats' },
+    { id: 'accessories', label: 'Flair' },
+    { id: 'faces', label: 'Faces' },
   ];
 
-  const handleSelect = (pathId, optionId) => {
-    setSelectedPath(prev => ({ ...prev, [pathId]: optionId }));
-    const path = paths.find(p => p.id === pathId);
-    const option = path.options.find(o => o.id === optionId);
-    setActiveInstruction(option);
+  const items = AVATAR_ITEMS[activeTab] || [];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+      <div className="bg-slate-800 border-2 border-yellow-500 rounded-2xl max-w-lg w-full p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-2xl font-black uppercase italic flex items-center gap-2">
+            <User className="w-8 h-8 text-yellow-500" /> My Avatar
+          </h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-white">
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        {/* Preview */}
+        <div className="text-center mb-6">
+          <div className={`w-24 h-24 rounded-full ${AVATAR_ITEMS.colors.find(c => c.id === gameState.avatar.color)?.value || 'bg-blue-500'} flex items-center justify-center text-5xl mx-auto relative`}>
+            {AVATAR_ITEMS.faces.find(f => f.id === gameState.avatar.face)?.emoji || '😊'}
+            {gameState.avatar.hat !== 'none' && (
+              <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-3xl">
+                {AVATAR_ITEMS.hats.find(h => h.id === gameState.avatar.hat)?.emoji}
+              </span>
+            )}
+            {gameState.avatar.accessory !== 'none' && (
+              <span className="absolute -bottom-1 right-0 text-2xl">
+                {AVATAR_ITEMS.accessories.find(a => a.id === gameState.avatar.accessory)?.emoji}
+              </span>
+            )}
+          </div>
+
+          {editingName ? (
+            <div className="mt-4 flex gap-2 justify-center">
+              <input
+                type="text"
+                value={tempName}
+                onChange={(e) => setTempName(e.target.value)}
+                className="px-3 py-1 bg-slate-700 rounded-lg text-white text-center"
+                placeholder="Your name"
+                maxLength={20}
+              />
+              <button
+                onClick={() => { onSetName(tempName); setEditingName(false); }}
+                className="px-3 py-1 bg-yellow-500 text-slate-900 rounded-lg font-bold"
+              >
+                Save
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setEditingName(true)}
+              className="mt-4 text-slate-400 hover:text-white text-sm"
+            >
+              {gameState.playerName || 'Click to set name'} ✏️
+            </button>
+          )}
+
+          <div className="flex items-center justify-center gap-1 mt-2 text-yellow-400">
+            <Star className="w-4 h-4 fill-yellow-400" />
+            <span className="font-bold">{gameState.coins} coins</span>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-2 mb-4">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 py-2 rounded-lg font-bold text-sm transition-colors ${
+                activeTab === tab.id ? 'bg-yellow-500 text-slate-900' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Items Grid */}
+        <div className="grid grid-cols-3 gap-3 max-h-48 overflow-y-auto">
+          {items.map(item => {
+            const owned = gameState.ownedItems.includes(item.id);
+            const equipped = gameState.avatar[activeTab.slice(0, -1)] === item.id;
+
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  if (owned) {
+                    onEquip(activeTab.slice(0, -1), item.id);
+                  } else if (gameState.coins >= item.cost) {
+                    onBuy(item.id, item.cost);
+                  }
+                }}
+                disabled={!owned && gameState.coins < item.cost}
+                className={`p-3 rounded-lg border-2 transition-all ${
+                  equipped
+                    ? 'border-yellow-500 bg-yellow-500/20'
+                    : owned
+                    ? 'border-green-500 bg-slate-700 hover:bg-slate-600'
+                    : gameState.coins >= item.cost
+                    ? 'border-slate-600 bg-slate-700 hover:bg-slate-600'
+                    : 'border-slate-700 bg-slate-800 opacity-50'
+                }`}
+              >
+                <div className={`text-2xl mb-1 ${activeTab === 'colors' ? `w-8 h-8 rounded-full ${item.value} mx-auto` : ''}`}>
+                  {activeTab !== 'colors' && (item.emoji || '—')}
+                </div>
+                <p className="text-xs font-bold truncate">{item.name}</p>
+                {!owned && item.cost > 0 && (
+                  <p className="text-xs text-yellow-400">{item.cost} 🪙</p>
+                )}
+                {equipped && <p className="text-xs text-green-400">Equipped</p>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============== MYSTERY BOX MODAL ==============
+function MysteryBoxModal({ reward, onClose }) {
+  const [revealed, setRevealed] = useState(false);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+      <div className="bg-slate-800 border-2 border-purple-500 rounded-2xl max-w-sm w-full p-6 text-center">
+        {!revealed ? (
+          <>
+            <div className="text-8xl mb-4 animate-bounce">🎁</div>
+            <h3 className="text-2xl font-black uppercase italic mb-4">Mystery Box!</h3>
+            <button
+              onClick={() => setRevealed(true)}
+              className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-black uppercase rounded-xl"
+            >
+              Open Box
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="text-6xl mb-4">✨</div>
+            <p className={`text-sm uppercase tracking-widest ${reward.color} mb-2`}>{reward.rarity}</p>
+            <h3 className="text-2xl font-black mb-2">{reward.name}</h3>
+            <p className="text-xl text-yellow-400 mb-6">{reward.desc}</p>
+            <button
+              onClick={onClose}
+              className="w-full py-3 bg-yellow-500 text-slate-900 font-black uppercase rounded-xl"
+            >
+              Awesome!
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============== LEVEL UP MODAL ==============
+function LevelUpModal({ level, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+      <div className="bg-gradient-to-b from-yellow-600 to-yellow-700 border-4 border-yellow-400 rounded-2xl max-w-sm w-full p-8 text-center">
+        <div className="text-8xl mb-4">🎉</div>
+        <h3 className="text-3xl font-black uppercase italic text-white mb-2">Level Up!</h3>
+        <p className={`text-4xl font-black ${level.color} mb-2`}>Level {level.level}</p>
+        <p className="text-2xl font-bold text-white mb-6">{level.title}</p>
+        <button
+          onClick={onClose}
+          className="w-full py-3 bg-white text-yellow-700 font-black uppercase rounded-xl hover:bg-slate-100"
+        >
+          Let's Go!
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============== ACHIEVEMENT UNLOCK MODAL ==============
+function AchievementModal({ achievement, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+      <div className="bg-slate-800 border-4 border-yellow-500 rounded-2xl max-w-sm w-full p-8 text-center">
+        <div className="text-8xl mb-4">{achievement.icon}</div>
+        <p className="text-sm uppercase tracking-widest text-yellow-500 mb-2">Achievement Unlocked!</p>
+        <h3 className="text-2xl font-black uppercase italic text-white mb-2">{achievement.title}</h3>
+        <p className="text-slate-400 mb-4">{achievement.desc}</p>
+        <p className="text-xl text-yellow-400 font-bold mb-6">+{achievement.xpReward} XP</p>
+        <button
+          onClick={onClose}
+          className="w-full py-3 bg-yellow-500 text-slate-900 font-black uppercase rounded-xl"
+        >
+          Awesome!
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============== ACTIVITY CARD ==============
+function ActivityCard({ path, selectedOption, onSelect, completedActivities }) {
+  const IconComponent = IconMap[path.icon];
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className={`flex items-center gap-3 p-4 rounded-t-xl ${path.color}`}>
+        <IconComponent className="w-6 h-6" />
+        <div>
+          <h2 className="font-black uppercase italic leading-none">{path.title}</h2>
+          <span className="text-xs opacity-80 font-bold">{path.subtitle}</span>
+        </div>
+      </div>
+
+      <div className="bg-slate-800 p-4 rounded-b-xl border-x border-b border-slate-700 flex-1 flex flex-col gap-4">
+        {path.options.map((opt) => {
+          const isCompleted = completedActivities.includes(opt.id);
+          return (
+            <button
+              key={opt.id}
+              onClick={() => onSelect(path.id, opt)}
+              className={`text-left p-4 rounded-lg border-2 transition-all group relative overflow-hidden ${
+                selectedOption === opt.id
+                  ? 'border-yellow-500 bg-slate-700'
+                  : isCompleted
+                  ? 'border-green-500/50 bg-slate-700/50'
+                  : 'border-slate-700 bg-slate-800 hover:border-slate-500'
+              }`}
+            >
+              <div className="flex justify-between items-start mb-2">
+                <span className="text-xs font-black uppercase text-slate-400 group-hover:text-yellow-500">
+                  {opt.type}
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-yellow-500 font-bold">+{opt.xp} XP</span>
+                  {isCompleted && <CheckCircle2 className="w-5 h-5 text-green-500" />}
+                </div>
+              </div>
+              <h3 className="font-bold text-lg mb-1">{opt.title}</h3>
+              <p className="text-sm text-slate-400 leading-snug">{opt.desc}</p>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ============== INSTRUCTION MODAL ==============
+function InstructionModal({ activity, path, onComplete, onClose, dailyQuest, dailyCompleted }) {
+  const isDailyMatch = dailyQuest && (
+    (dailyQuest.targetType && activity.type === dailyQuest.targetType) ||
+    (dailyQuest.targetPath && path.id === dailyQuest.targetPath)
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+      <div className="bg-slate-800 border-2 border-yellow-500 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white">
+          <X className="w-6 h-6" />
+        </button>
+
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 bg-yellow-500 rounded-lg">
+            <PlayCircle className="w-6 h-6 text-slate-900" />
+          </div>
+          <div>
+            <h3 className="text-2xl font-black uppercase italic">{activity.title}</h3>
+            <p className="text-yellow-500 text-sm font-bold uppercase tracking-widest">Active Objective</p>
+          </div>
+        </div>
+
+        {isDailyMatch && !dailyCompleted && (
+          <div className="bg-purple-600/30 border border-purple-500 p-3 rounded-lg mb-6 flex items-center gap-2">
+            <Target className="w-5 h-5 text-purple-400" />
+            <span className="text-sm text-purple-200">
+              <strong>Daily Quest Bonus!</strong> Earn {dailyQuest.multiplier}x XP
+            </span>
+          </div>
+        )}
+
+        <div className="bg-slate-700/50 p-3 rounded-lg mb-6 flex items-center justify-center gap-2">
+          <Star className="w-5 h-5 text-yellow-500" />
+          <span className="font-bold text-yellow-400">+{activity.xp} XP</span>
+          {isDailyMatch && !dailyCompleted && (
+            <span className="text-purple-400 font-bold">→ +{activity.xp * dailyQuest.multiplier} XP</span>
+          )}
+        </div>
+
+        <div className="space-y-4 mb-8">
+          <h4 className="font-bold text-slate-300 uppercase text-xs tracking-widest">How to Play:</h4>
+          <ol className="space-y-3">
+            {activity.steps.map((step, idx) => (
+              <li key={idx} className="flex gap-3 text-slate-300">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-slate-700 text-yellow-500 flex items-center justify-center text-xs font-bold border border-slate-600">
+                  {idx + 1}
+                </span>
+                <span className="text-sm leading-relaxed">{step}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        <div className="bg-blue-600/20 border border-blue-500/30 p-4 rounded-xl mb-6">
+          <div className="flex items-center gap-2 mb-1 text-blue-400">
+            <Trophy className="w-4 h-4" />
+            <span className="text-xs font-black uppercase tracking-widest">Pro Tip</span>
+          </div>
+          <p className="text-sm text-blue-100">{activity.proTip}</p>
+        </div>
+
+        <button
+          onClick={() => { onComplete(activity, path.id); onClose(); }}
+          className="w-full py-3 bg-yellow-500 text-slate-900 font-black uppercase italic rounded-xl hover:bg-yellow-400 transition-colors flex items-center justify-center gap-2"
+        >
+          <Rocket className="w-5 h-5" />
+          Complete Mission
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============== MAIN APP ==============
+export default function App() {
+  const {
+    gameState,
+    getCurrentLevel,
+    getNextLevelXp,
+    getDailyQuest,
+    completeActivity,
+    completeBossChallenge,
+    joinGuild,
+    openMysteryBox,
+    buyAvatarItem,
+    equipAvatarItem,
+    setPlayerName,
+    showLevelUp,
+    setShowLevelUp,
+    newLevel,
+    showAchievement,
+    setShowAchievement,
+    showMysteryReward,
+    setShowMysteryReward,
+  } = useGameState();
+
+  const [selectedPath, setSelectedPath] = useState({ path1: null, path2: null, path3: null });
+  const [activeInstruction, setActiveInstruction] = useState(null);
+  const [activePath, setActivePath] = useState(null);
+  const [showTrophyCase, setShowTrophyCase] = useState(false);
+  const [showAvatarBuilder, setShowAvatarBuilder] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
+  const [pendingMysteryBox, setPendingMysteryBox] = useState(false);
+
+  const dailyQuest = getDailyQuest();
+
+  const handleSelect = (pathId, activity) => {
+    setSelectedPath(prev => ({ ...prev, [pathId]: activity.id }));
+    setActiveInstruction(activity);
+    setActivePath(LEARNING_PATHS.find(p => p.id === pathId));
+  };
+
+  const handleOpenMysteryBox = () => {
+    openMysteryBox();
+    setPendingMysteryBox(true);
   };
 
   const completedCount = Object.values(selectedPath).filter(v => v !== null).length;
@@ -126,148 +702,148 @@ const App = () => {
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 p-4 md:p-8 font-sans relative">
       {/* Header */}
-      <div className="max-w-4xl mx-auto text-center mb-10">
-        <div className="inline-flex items-center justify-center p-3 bg-yellow-500 rounded-full mb-4 shadow-lg shadow-yellow-500/20">
-          <Gamepad2 className="w-8 h-8 text-slate-900" />
+      <div className="max-w-6xl mx-auto">
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center p-3 bg-yellow-500 rounded-full mb-4 shadow-lg shadow-yellow-500/20">
+            <Gamepad2 className="w-8 h-8 text-slate-900" />
+          </div>
+          <h1 className="text-4xl md:text-5xl font-black tracking-tighter italic uppercase mb-2">
+            Level Up: 5th Grade Mission
+          </h1>
+          <p className="text-slate-400 text-lg">Choose your path. Master the content. Own the game.</p>
         </div>
-        <h1 className="text-4xl md:text-5xl font-black tracking-tighter italic uppercase mb-2">
-          Level Up: 5th Grade Mission
-        </h1>
-        <p className="text-slate-400 text-lg">Choose your path. Master the content. Own the game.</p>
 
-        {/* Progress Bar */}
-        <div className="mt-8 bg-slate-800 h-4 rounded-full overflow-hidden max-w-md mx-auto border border-slate-700">
-          <div
-            className="bg-yellow-500 h-full transition-all duration-500 ease-out"
-            style={{ width: `${(completedCount / 3) * 100}%` }}
-          />
+        {/* Player Stats */}
+        <PlayerStats
+          gameState={gameState}
+          getCurrentLevel={getCurrentLevel}
+          getNextLevelXp={getNextLevelXp}
+          onOpenProfile={() => setShowAvatarBuilder(true)}
+          onOpenMysteryBox={handleOpenMysteryBox}
+        />
+
+        {/* Quick Actions */}
+        <div className="flex gap-4 mb-6 flex-wrap">
+          <button
+            onClick={() => setShowTrophyCase(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg hover:border-yellow-500 transition-colors"
+          >
+            <Trophy className="w-5 h-5 text-yellow-500" />
+            <span className="font-bold">Trophies</span>
+            <span className="text-xs bg-yellow-500 text-slate-900 px-2 py-0.5 rounded-full">
+              {gameState.unlockedAchievements.length}/{ACHIEVEMENTS.length}
+            </span>
+          </button>
         </div>
-        <p className="mt-2 text-sm font-bold text-yellow-500 uppercase tracking-widest">
-          {completedCount}/3 Objectives Selected
-        </p>
+
+        {/* Daily Quest */}
+        <DailyQuestBanner quest={dailyQuest} completed={gameState.dailyQuestCompleted} />
+
+        {/* Guild */}
+        <GuildPanel
+          currentGuild={gameState.guild}
+          onJoinGuild={joinGuild}
+          guildXp={gameState.guildXpContributed}
+        />
+
+        {/* Boss Challenge */}
+        <BossChallenge
+          completedBosses={gameState.completedBossChallenges}
+          onComplete={completeBossChallenge}
+        />
+
+        {/* Activity Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+          {LEARNING_PATHS.map((path) => (
+            <ActivityCard
+              key={path.id}
+              path={path}
+              selectedOption={selectedPath[path.id]}
+              onSelect={handleSelect}
+              completedActivities={gameState.completedActivities}
+            />
+          ))}
+        </div>
+
+        {/* Footer / Teacher Info */}
+        <div className="text-center pb-20">
+          <button
+            onClick={() => setShowInfo(!showInfo)}
+            className="inline-flex items-center gap-2 text-slate-500 hover:text-slate-300 transition-colors"
+          >
+            <Info className="w-4 h-4" />
+            {showInfo ? 'Hide Pedagogical Connections' : 'Show Pedagogical Connections'}
+          </button>
+
+          {showInfo && (
+            <div className="mt-6 p-6 bg-slate-800/50 rounded-xl border border-slate-700 text-left max-w-4xl mx-auto">
+              <h4 className="text-yellow-500 font-bold uppercase mb-4 flex items-center gap-2">
+                <Trophy className="w-5 h-5" /> Why this works (The Innovating for Access Connection)
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                <div>
+                  <p className="font-bold text-slate-300 underline mb-1">Removing Barriers (UDL)</p>
+                  <p className="text-slate-400 italic">"By offering 'Low Tech' options like sketching, we ensure that students who are blocked by typing or digital navigation can still show mastery of the core standard."</p>
+                </div>
+                <div>
+                  <p className="font-bold text-slate-300 underline mb-1">Establishing Agency (Phase 2)</p>
+                  <p className="text-slate-400 italic text-xs leading-relaxed">"This board moves the classroom from whole-group lockstep to student-led paths. It rewards 'Craftsmanship' (Leonard's goal) and 'Active Verbal Response' (Thomas's goal)."</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Grid */}
-      <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
-        {paths.map((path) => (
-          <div key={path.id} className="flex flex-col gap-4">
-            <div className={`flex items-center gap-3 p-4 rounded-t-xl ${path.color}`}>
-              {path.icon}
-              <div>
-                <h2 className="font-black uppercase italic leading-none">{path.title}</h2>
-                <span className="text-xs opacity-80 font-bold">{path.subtitle}</span>
-              </div>
-            </div>
-
-            <div className="bg-slate-800 p-4 rounded-b-xl border-x border-b border-slate-700 flex-1 flex flex-col gap-4">
-              {path.options.map((opt) => (
-                <button
-                  key={opt.id}
-                  onClick={() => handleSelect(path.id, opt.id)}
-                  className={`text-left p-4 rounded-lg border-2 transition-all group relative overflow-hidden ${
-                    selectedPath[path.id] === opt.id
-                    ? 'border-yellow-500 bg-slate-700'
-                    : 'border-slate-700 bg-slate-800 hover:border-slate-500'
-                  }`}
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="text-xs font-black uppercase text-slate-400 group-hover:text-yellow-500">
-                      {opt.type}
-                    </span>
-                    {selectedPath[path.id] === opt.id && <CheckCircle2 className="w-5 h-5 text-yellow-500" />}
-                  </div>
-                  <h3 className="font-bold text-lg mb-1">{opt.title}</h3>
-                  <p className="text-sm text-slate-400 leading-snug">{opt.desc}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Instruction Modal */}
-      {activeInstruction && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-slate-800 border-2 border-yellow-500 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
-            <button
-              onClick={() => setActiveInstruction(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white"
-            >
-              <X className="w-6 h-6" />
-            </button>
-
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-yellow-500 rounded-lg">
-                <PlayCircle className="w-6 h-6 text-slate-900" />
-              </div>
-              <div>
-                <h3 className="text-2xl font-black uppercase italic">{activeInstruction.title}</h3>
-                <p className="text-yellow-500 text-sm font-bold uppercase tracking-widest">Active Objective</p>
-              </div>
-            </div>
-
-            <div className="space-y-4 mb-8">
-              <h4 className="font-bold text-slate-300 uppercase text-xs tracking-widest">How to Play:</h4>
-              <ol className="space-y-3">
-                {activeInstruction.steps.map((step, idx) => (
-                  <li key={idx} className="flex gap-3 text-slate-300">
-                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-slate-700 text-yellow-500 flex items-center justify-center text-xs font-bold border border-slate-600">
-                      {idx + 1}
-                    </span>
-                    <span className="text-sm leading-relaxed">{step}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-
-            <div className="bg-blue-600/20 border border-blue-500/30 p-4 rounded-xl">
-              <div className="flex items-center gap-2 mb-1 text-blue-400">
-                <Trophy className="w-4 h-4" />
-                <span className="text-xs font-black uppercase tracking-widest">Pro Tip</span>
-              </div>
-              <p className="text-sm text-blue-100">{activeInstruction.proTip}</p>
-            </div>
-
-            <button
-              onClick={() => setActiveInstruction(null)}
-              className="w-full mt-6 py-3 bg-yellow-500 text-slate-900 font-black uppercase italic rounded-xl hover:bg-yellow-400 transition-colors"
-            >
-              Start Mission
-            </button>
-          </div>
-        </div>
+      {/* Modals */}
+      {activeInstruction && activePath && (
+        <InstructionModal
+          activity={activeInstruction}
+          path={activePath}
+          onComplete={completeActivity}
+          onClose={() => { setActiveInstruction(null); setActivePath(null); }}
+          dailyQuest={dailyQuest}
+          dailyCompleted={gameState.dailyQuestCompleted}
+        />
       )}
 
-      {/* Footer / Teacher Info */}
-      <div className="max-w-4xl mx-auto mt-12 text-center pb-20">
-        <button
-          onClick={() => setShowInfo(!showInfo)}
-          className="inline-flex items-center gap-2 text-slate-500 hover:text-slate-300 transition-colors"
-        >
-          <Info className="w-4 h-4" />
-          {showInfo ? 'Hide Pedagogical Connections' : 'Show Pedagogical Connections'}
-        </button>
+      {showTrophyCase && (
+        <TrophyCase
+          achievements={gameState.unlockedAchievements}
+          onClose={() => setShowTrophyCase(false)}
+        />
+      )}
 
-        {showInfo && (
-          <div className="mt-6 p-6 bg-slate-800/50 rounded-xl border border-slate-700 text-left animate-in fade-in slide-in-from-bottom-4">
-            <h4 className="text-yellow-500 font-bold uppercase mb-4 flex items-center gap-2">
-              <Trophy className="w-5 h-5" /> Why this works (The Innovating for Access Connection)
-            </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-              <div>
-                <p className="font-bold text-slate-300 underline mb-1">Removing Barriers (UDL)</p>
-                <p className="text-slate-400 italic">"By offering 'Low Tech' options like sketching, we ensure that students who are blocked by typing or digital navigation can still show mastery of the core standard."</p>
-              </div>
-              <div>
-                <p className="font-bold text-slate-300 underline mb-1">Establishing Agency (Phase 2)</p>
-                <p className="text-slate-400 italic text-xs leading-relaxed">"This board moves the classroom from whole-group lockstep to student-led paths. It rewards 'Craftsmanship' (Leonard's goal) and 'Active Verbal Response' (Thomas's goal)."</p>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      {showAvatarBuilder && (
+        <AvatarBuilder
+          gameState={gameState}
+          onBuy={buyAvatarItem}
+          onEquip={equipAvatarItem}
+          onClose={() => setShowAvatarBuilder(false)}
+          onSetName={setPlayerName}
+        />
+      )}
+
+      {showMysteryReward && (
+        <MysteryBoxModal
+          reward={showMysteryReward}
+          onClose={() => setShowMysteryReward(null)}
+        />
+      )}
+
+      {showLevelUp && newLevel && (
+        <LevelUpModal
+          level={newLevel}
+          onClose={() => setShowLevelUp(false)}
+        />
+      )}
+
+      {showAchievement && (
+        <AchievementModal
+          achievement={showAchievement}
+          onClose={() => setShowAchievement(null)}
+        />
+      )}
     </div>
   );
-};
-
-export default App;
+}
