@@ -138,6 +138,48 @@ export const realBackend = {
     return { id: classDoc.id, ...classData, teacherName };
   },
 
+  async deleteClass(classId) {
+    try {
+      const { deleteDoc } = await import("firebase/firestore");
+
+      // Delete all students in the class
+      const studentsQuery = query(collection(db, "students"), where("classId", "==", classId));
+      const studentsSnapshot = await getDocs(studentsQuery);
+      const studentDeletes = studentsSnapshot.docs.map(studentDoc =>
+        deleteDoc(doc(db, "students", studentDoc.id))
+      );
+
+      // Delete all submissions for this class
+      const submissionsQuery = query(collection(db, "submissions"), where("classId", "==", classId));
+      const submissionsSnapshot = await getDocs(submissionsQuery);
+      const submissionDeletes = submissionsSnapshot.docs.map(subDoc =>
+        deleteDoc(doc(db, "submissions", subDoc.id))
+      );
+
+      // Wait for all deletes
+      await Promise.all([...studentDeletes, ...submissionDeletes]);
+
+      // Delete the class itself
+      await deleteDoc(doc(db, "classes", classId));
+
+      return { success: true };
+    } catch (error) {
+      console.error("Error deleting class:", error);
+      throw new Error(error.message);
+    }
+  },
+
+  async getStudentsInClass(classId) {
+    try {
+      const q = query(collection(db, "students"), where("classId", "==", classId));
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error("Error getting students:", error);
+      return [];
+    }
+  },
+
   // ================= STUDENT AUTH =================
   async joinClass(classCode, username) {
     try {
