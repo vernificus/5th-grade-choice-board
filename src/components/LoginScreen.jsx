@@ -37,7 +37,7 @@ export default function LoginScreen() {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const result = await joinClassAsStudent(classCode.toUpperCase(), username);
+    const result = await joinClassAsStudent(classCode.trim().toUpperCase(), username.trim());
     if (!result.success) setError(result.error);
     setLoading(false);
   };
