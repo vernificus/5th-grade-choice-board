@@ -145,7 +145,10 @@ export const realBackend = {
       const qClass = query(collection(db, "classes"), where("code", "==", classCode));
       const classSnapshot = await getDocs(qClass);
 
-      if (classSnapshot.empty) throw new Error('Invalid class code');
+      if (classSnapshot.empty) {
+        console.error(`Class not found for code: "${classCode}"`);
+        throw new Error('Invalid class code');
+      }
 
       const classDoc = classSnapshot.docs[0];
       const classId = classDoc.id;
