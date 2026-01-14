@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { realBackend as backend } from '../services/realBackend';
 import {
   Users, Plus, LogOut, BookOpen, ClipboardList, CheckCircle2,
-  XCircle, Clock, ChevronRight, GraduationCap, Copy
+  XCircle, Clock, ChevronRight, GraduationCap, Copy, Trash2, RefreshCw, User
 } from 'lucide-react';
 import { FileViewer } from './FileViewer'; // Updated import
 
@@ -12,9 +12,12 @@ export default function TeacherPortal() {
   const [classes, setClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState(null);
   const [submissions, setSubmissions] = useState([]);
+  const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [creatingClass, setCreatingClass] = useState(false);
   const [newClassName, setNewClassName] = useState('');
+  const [activeTab, setActiveTab] = useState('submissions'); // 'submissions' or 'students'
+  const [deletingClass, setDeletingClass] = useState(null);
 
   useEffect(() => {
     loadClasses();
@@ -22,7 +25,7 @@ export default function TeacherPortal() {
 
   useEffect(() => {
     if (selectedClass) {
-      loadSubmissions(selectedClass.id);
+      loadClassData(selectedClass.id);
     }
   }, [selectedClass]);
 
@@ -31,11 +34,40 @@ export default function TeacherPortal() {
     setClasses(data);
   };
 
-  const loadSubmissions = async (classId) => {
+  const loadClassData = async (classId) => {
     setLoading(true);
-    const data = await backend.getSubmissions(classId);
-    setSubmissions(data);
+    const [subsData, studentsData] = await Promise.all([
+      backend.getSubmissions(classId),
+      backend.getStudentsInClass(classId)
+    ]);
+    setSubmissions(subsData);
+    setStudents(studentsData);
     setLoading(false);
+  };
+
+  const handleRefresh = () => {
+    if (selectedClass) {
+      loadClassData(selectedClass.id);
+    }
+  };
+
+  const handleDeleteClass = async (classId) => {
+    if (!window.confirm('Are you sure you want to delete this class? This will remove all students and submissions.')) {
+      return;
+    }
+    setDeletingClass(classId);
+    try {
+      await backend.deleteClass(classId);
+      if (selectedClass?.id === classId) {
+        setSelectedClass(null);
+        setSubmissions([]);
+        setStudents([]);
+      }
+      loadClasses();
+    } catch (error) {
+      alert('Failed to delete class: ' + error.message);
+    }
+    setDeletingClass(null);
   };
 
   const handleCreateClass = async (e) => {
@@ -55,7 +87,7 @@ export default function TeacherPortal() {
 
   const handleReview = async (submissionId, status, feedback) => {
     await backend.reviewSubmission(submissionId, status, feedback);
-    loadSubmissions(selectedClass.id); // Refresh
+    loadClassData(selectedClass.id); // Refresh
   };
 
   const copyCode = (code) => {
@@ -123,17 +155,30 @@ export default function TeacherPortal() {
 
             <div className="space-y-2">
               {classes.map(cls => (
-                <button
-                  key={cls.id}
-                  onClick={() => setSelectedClass(cls)}
-                  className={`w-full p-4 rounded-xl text-left transition-all ${selectedClass?.id === cls.id ? 'bg-green-600 text-white shadow-lg shadow-green-900/50' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
-                >
-                  <div className="font-bold text-lg">{cls.name}</div>
-                  <div className="flex justify-between items-center mt-2 text-sm opacity-80">
-                    <span className="flex items-center gap-1"><Users className="w-4 h-4" /> {cls.studentCount || 0} Students</span>
-                    <span className="font-mono bg-black/20 px-2 rounded text-xs">Code: {cls.code}</span>
-                  </div>
-                </button>
+                <div key={cls.id} className="relative group">
+                  <button
+                    onClick={() => setSelectedClass(cls)}
+                    className={`w-full p-4 rounded-xl text-left transition-all ${selectedClass?.id === cls.id ? 'bg-green-600 text-white shadow-lg shadow-green-900/50' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                  >
+                    <div className="font-bold text-lg pr-8">{cls.name}</div>
+                    <div className="flex justify-between items-center mt-2 text-sm opacity-80">
+                      <span className="flex items-center gap-1"><Users className="w-4 h-4" /> {cls.studentCount || 0} Students</span>
+                      <span className="font-mono bg-black/20 px-2 rounded text-xs">Code: {cls.code}</span>
+                    </div>
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDeleteClass(cls.id); }}
+                    disabled={deletingClass === cls.id}
+                    className="absolute top-2 right-2 p-2 text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Delete class"
+                  >
+                    {deletingClass === cls.id ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
               ))}
               {classes.length === 0 && !creatingClass && (
                 <div className="text-center py-8 text-slate-500 border-2 border-dashed border-slate-700 rounded-xl">
@@ -147,26 +192,58 @@ export default function TeacherPortal() {
           <div className="lg:col-span-3">
             {selectedClass ? (
               <div>
-                <div className="bg-slate-800 p-6 rounded-2xl mb-8 border border-slate-700 flex justify-between items-center">
-                  <div>
-                    <h2 className="text-2xl font-black text-white">{selectedClass.name}</h2>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-slate-400 text-sm">Class Code:</span>
-                      <code className="text-xl font-mono font-bold text-green-400 tracking-widest">{selectedClass.code}</code>
-                      <button onClick={() => copyCode(selectedClass.code)} className="text-slate-500 hover:text-white">
-                        <Copy className="w-4 h-4" />
+                <div className="bg-slate-800 p-6 rounded-2xl mb-6 border border-slate-700">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h2 className="text-2xl font-black text-white">{selectedClass.name}</h2>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-slate-400 text-sm">Class Code:</span>
+                        <code className="text-xl font-mono font-bold text-green-400 tracking-widest">{selectedClass.code}</code>
+                        <button onClick={() => copyCode(selectedClass.code)} className="text-slate-500 hover:text-white">
+                          <Copy className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <button
+                        onClick={handleRefresh}
+                        disabled={loading}
+                        className="p-2 text-slate-400 hover:text-white transition-colors"
+                        title="Refresh data"
+                      >
+                        <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
                       </button>
+                      <div className="text-right">
+                        <p className="text-3xl font-black text-white">{pending.length}</p>
+                        <p className="text-slate-400 text-xs uppercase font-bold">Pending Reviews</p>
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-3xl font-black text-white">{pending.length}</p>
-                    <p className="text-slate-400 text-xs uppercase font-bold">Pending Reviews</p>
+
+                  {/* Tabs */}
+                  <div className="flex gap-2 mt-4 pt-4 border-t border-slate-700">
+                    <button
+                      onClick={() => setActiveTab('submissions')}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-colors ${activeTab === 'submissions' ? 'bg-green-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+                    >
+                      <ClipboardList className="w-4 h-4" /> Submissions
+                      {pending.length > 0 && (
+                        <span className="bg-yellow-500 text-slate-900 px-2 py-0.5 rounded-full text-xs">{pending.length}</span>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('students')}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-colors ${activeTab === 'students' ? 'bg-green-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+                    >
+                      <Users className="w-4 h-4" /> Students
+                      <span className="bg-slate-600 text-slate-300 px-2 py-0.5 rounded-full text-xs">{students.length}</span>
+                    </button>
                   </div>
                 </div>
 
                 {loading ? (
-                  <div className="text-center py-12 text-slate-500">Loading submissions...</div>
-                ) : (
+                  <div className="text-center py-12 text-slate-500">Loading...</div>
+                ) : activeTab === 'submissions' ? (
                   <>
                     <h3 className="font-bold text-slate-400 uppercase text-xs tracking-widest mb-4 flex items-center gap-2">
                       <Clock className="w-4 h-4" /> Pending Reviews ({pending.length})
@@ -204,6 +281,53 @@ export default function TeacherPortal() {
                           ))}
                         </div>
                       </>
+                    )}
+                  </>
+                ) : (
+                  /* Students Tab */
+                  <>
+                    <h3 className="font-bold text-slate-400 uppercase text-xs tracking-widest mb-4 flex items-center gap-2">
+                      <Users className="w-4 h-4" /> Enrolled Students ({students.length})
+                    </h3>
+
+                    {students.length === 0 ? (
+                      <div className="bg-slate-800/50 rounded-xl p-8 text-center text-slate-500">
+                        <User className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                        No students yet. Share the class code with your students to get started!
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {students.map(student => {
+                          const studentSubmissions = submissions.filter(s => s.studentId === student.id);
+                          const approved = studentSubmissions.filter(s => s.status === 'approved').length;
+                          const studentPending = studentSubmissions.filter(s => s.status === 'pending').length;
+                          return (
+                            <div key={student.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                              <div className="flex items-center gap-3 mb-3">
+                                <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-lg font-bold">
+                                  {(student.name || 'S').charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                  <p className="font-bold text-white">{student.name || 'Unknown'}</p>
+                                  <p className="text-xs text-yellow-400 font-bold">{student.xp || 0} XP</p>
+                                </div>
+                              </div>
+                              <div className="flex gap-4 text-xs">
+                                <div className="flex items-center gap-1 text-green-400">
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  <span>{approved} approved</span>
+                                </div>
+                                {studentPending > 0 && (
+                                  <div className="flex items-center gap-1 text-blue-400">
+                                    <Clock className="w-3 h-3" />
+                                    <span>{studentPending} pending</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
                   </>
                 )}
