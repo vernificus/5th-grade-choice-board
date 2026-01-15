@@ -86,6 +86,14 @@ export default function TeacherPortal() {
     alert('Class code copied!');
   };
 
+  const handleRefresh = async () => {
+    if (!selectedClass) return;
+    setLoading(true);
+    const data = await backend.getStudents(selectedClass.id);
+    setStudents(data);
+    setLoading(false);
+  };
+
   // Filter submissions
   const pending = submissions.filter(s => s.status === 'pending');
   const reviewed = submissions.filter(s => s.status !== 'pending');
