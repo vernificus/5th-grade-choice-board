@@ -3,14 +3,15 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
-// Firebase configuration from environment variables
+// Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: "AIzaSyDKLMlppBBEjRpRUij3ahK0hrYBP9buCZA",
+  authDomain: "level-up-choice-board-game.firebaseapp.com",
+  projectId: "level-up-choice-board-game",
+  storageBucket: "level-up-choice-board-game.firebasestorage.app",
+  messagingSenderId: "805971118488",
+  appId: "1:805971118488:web:9ab2e6e4e77ed79c9243ed",
+  measurementId: "G-5X6Q4M0DBJ"
 };
 
 // Initialize Firebase
