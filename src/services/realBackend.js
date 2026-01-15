@@ -178,8 +178,14 @@ export const realBackend = {
   // ================= ACTIVITY LIBRARY =================
   async publishActivity(activity) {
     try {
+      // Get current user to add as author
+      const user = auth.currentUser;
+      if (!user) throw new Error("Must be logged in to publish");
+
       const newActivity = {
         ...activity,
+        authorId: user.uid,
+        authorName: user.displayName || "Unknown Teacher",
         publishedAt: serverTimestamp()
       };
       const docRef = await addDoc(collection(db, "activity_library"), newActivity);

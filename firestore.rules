@@ -54,5 +54,17 @@ service cloud.firestore {
       allow read: if true;
       allow update: if isAuthenticated() && isTeacherOfClass(resource.data.classId);
     }
+
+    // ACTIVITY LIBRARY
+    match /activity_library/{activityId} {
+      // Authenticated teachers can read all library activities
+      allow read: if isAuthenticated();
+
+      // Authenticated teachers can create new activities
+      allow create: if isAuthenticated();
+
+      // Only the author can update or delete their activity
+      allow update, delete: if isAuthenticated() && resource.data.authorId == request.auth.uid;
+    }
   }
 }
