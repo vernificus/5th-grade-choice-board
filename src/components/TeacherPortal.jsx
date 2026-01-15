@@ -81,6 +81,15 @@ export default function TeacherPortal() {
     // No need to reload, subscription handles it
   };
 
+  const handleRefresh = () => {
+    loadClasses();
+    if (selectedClass) {
+        // Trigger reload by resetting selectedClass briefly or just calling fetch
+        // Since we have realtime subscriptions for submissions, we mostly need to refresh students/metadata
+        backend.getStudents(selectedClass.id).then(setStudents);
+    }
+  };
+
   const copyCode = (code) => {
     navigator.clipboard.writeText(code);
     alert('Class code copied!');
