@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { realBackend as backend } from '../services/realBackend';
 import {
   Users, Plus, LogOut, BookOpen, ClipboardList, CheckCircle2,
-  XCircle, Clock, ChevronRight, GraduationCap, Copy, Trash2, Edit
+  XCircle, Clock, ChevronRight, GraduationCap, Copy, Trash2, Edit, RefreshCw
 } from 'lucide-react';
 import { FileViewer } from './FileViewer';
 
@@ -79,6 +79,15 @@ export default function TeacherPortal() {
   const handleReview = async (submissionId, status, feedback) => {
     await backend.reviewSubmission(submissionId, status, feedback);
     // No need to reload, subscription handles it
+  };
+
+  const handleRefresh = () => {
+    loadClasses();
+    if (selectedClass) {
+        // Trigger reload by resetting selectedClass briefly or just calling fetch
+        // Since we have realtime subscriptions for submissions, we mostly need to refresh students/metadata
+        backend.getStudents(selectedClass.id).then(setStudents);
+    }
   };
 
   const copyCode = (code) => {
@@ -178,15 +187,31 @@ export default function TeacherPortal() {
           <div className="lg:col-span-3">
             {selectedClass ? (
               <div>
-                <div className="bg-slate-800 p-6 rounded-2xl mb-8 border border-slate-700 flex justify-between items-center">
-                  <div>
-                    <h2 className="text-2xl font-black text-white">{selectedClass.name}</h2>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-slate-400 text-sm">Class Code:</span>
-                      <code className="text-xl font-mono font-bold text-green-400 tracking-widest">{selectedClass.code}</code>
-                      <button onClick={() => copyCode(selectedClass.code)} className="text-slate-500 hover:text-white">
-                        <Copy className="w-4 h-4" />
+                <div className="bg-slate-800 p-6 rounded-2xl mb-6 border border-slate-700">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h2 className="text-2xl font-black text-white">{selectedClass.name}</h2>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-slate-400 text-sm">Class Code:</span>
+                        <code className="text-xl font-mono font-bold text-green-400 tracking-widest">{selectedClass.code}</code>
+                        <button onClick={() => copyCode(selectedClass.code)} className="text-slate-500 hover:text-white">
+                          <Copy className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <button
+                        onClick={handleRefresh}
+                        disabled={loading}
+                        className="p-2 text-slate-400 hover:text-white transition-colors"
+                        title="Refresh data"
+                      >
+                        <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
                       </button>
+                      <div className="text-right">
+                        <p className="text-3xl font-black text-white">{pending.length}</p>
+                        <p className="text-slate-400 text-xs uppercase font-bold">Pending Reviews</p>
+                      </div>
                     </div>
                   </div>
                   <div className="flex gap-4">
@@ -287,7 +312,6 @@ export default function TeacherPortal() {
                     )}
                   </>
                 )}
-
               </div>
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-slate-500 border-2 border-dashed border-slate-800 rounded-3xl min-h-[400px]">
