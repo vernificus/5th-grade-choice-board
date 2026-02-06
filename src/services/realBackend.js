@@ -411,5 +411,39 @@ export const realBackend = {
       console.error("Error reviewing submission:", error);
       throw error;
     }
+  },
+
+  // ================= ACTIVITY RESET =================
+  async resetStudentActivities(studentId) {
+    try {
+      const docRef = doc(db, "students", studentId);
+      await updateDoc(docRef, {
+        completedActivities: [],
+        lastActivityReset: new Date().toISOString()
+      });
+      return true;
+    } catch (error) {
+      console.error("Error resetting student activities:", error);
+      throw error;
+    }
+  },
+
+  async resetClassActivities(classId) {
+    try {
+      const q = query(collection(db, "students"), where("classId", "==", classId));
+      const querySnapshot = await getDocs(q);
+      const updates = [];
+      querySnapshot.forEach((studentDoc) => {
+        updates.push(updateDoc(doc(db, "students", studentDoc.id), {
+          completedActivities: [],
+          lastActivityReset: new Date().toISOString()
+        }));
+      });
+      await Promise.all(updates);
+      return querySnapshot.size;
+    } catch (error) {
+      console.error("Error resetting class activities:", error);
+      throw error;
+    }
   }
 };
