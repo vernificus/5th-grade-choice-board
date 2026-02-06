@@ -6,6 +6,17 @@
   body {
     @apply antialiased;
   }
+
+  /* WCAG 2.4.7: Visible focus indicators for all interactive elements */
+  *:focus-visible {
+    @apply outline-2 outline-offset-2 outline-yellow-400;
+    outline-style: solid;
+  }
+
+  /* Remove default outline only when focus-visible is supported */
+  *:focus:not(:focus-visible) {
+    outline: none;
+  }
 }
 
 @layer utilities {
@@ -22,5 +33,25 @@
       opacity: 1;
       transform: translateY(0);
     }
+  }
+
+  /* WCAG 2.3.3: Respect reduced motion preferences */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-in,
+    .animate-pulse,
+    .animate-bounce,
+    .animate-spin {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+
+  /* Skip navigation link - WCAG 2.4.1 */
+  .sr-skip-link {
+    @apply absolute -top-full left-4 z-[100] bg-yellow-500 text-slate-900 px-4 py-2 font-bold rounded-b-lg;
+    transition: top 0.2s;
+  }
+  .sr-skip-link:focus {
+    @apply top-0;
   }
 }

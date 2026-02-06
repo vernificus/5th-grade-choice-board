@@ -104,17 +104,23 @@ export default function RosterManager({ classId, onStudentAdded }) {
           <UserPlus className="w-6 h-6 text-green-400" /> Add Student
         </h3>
 
-        <form onSubmit={handleAddStudent} className="flex flex-col md:flex-row gap-4 mb-4">
-          <input
-            type="text"
-            placeholder="Student Name"
-            value={newStudentName}
-            onChange={e => setNewStudentName(e.target.value)}
-            className="flex-1 px-4 py-2 bg-slate-700 rounded-lg text-white border border-slate-600 focus:border-green-500 outline-none"
-          />
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+        <form onSubmit={handleAddStudent} className="flex flex-col md:flex-row gap-4 mb-4" aria-label="Add new student">
+          <div className="flex-1">
+            <label htmlFor="new-student-name" className="sr-only">Student Name</label>
             <input
+              id="new-student-name"
+              type="text"
+              placeholder="Student Name"
+              value={newStudentName}
+              onChange={e => setNewStudentName(e.target.value)}
+              className="w-full px-4 py-2 bg-slate-700 rounded-lg text-white border border-slate-600 focus:border-green-500 outline-none"
+            />
+          </div>
+          <div className="relative">
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" aria-hidden="true" />
+            <label htmlFor="new-student-password" className="sr-only">Set Password/PIN</label>
+            <input
+              id="new-student-password"
               type="text"
               placeholder="Set Password/PIN"
               value={newStudentPassword}
@@ -134,14 +140,16 @@ export default function RosterManager({ classId, onStudentAdded }) {
         <button
           onClick={() => setShowBulk(!showBulk)}
           className="text-sm text-blue-400 hover:underline mb-4"
+          aria-expanded={showBulk}
         >
           {showBulk ? 'Hide Bulk Upload' : 'Bulk Upload (CSV)'}
         </button>
 
         {showBulk && (
           <div className="bg-slate-900 p-4 rounded-lg border border-slate-700 mb-4">
-            <p className="text-xs text-slate-400 mb-2">Enter names and passwords, one per line (e.g., "Alice, 1234")</p>
+            <label htmlFor="bulk-upload" className="text-xs text-slate-400 mb-2 block">Enter names and passwords, one per line (e.g., "Alice, 1234")</label>
             <textarea
+              id="bulk-upload"
               value={bulkText}
               onChange={e => setBulkText(e.target.value)}
               className="w-full h-32 bg-slate-800 text-white p-2 rounded border border-slate-600 text-sm font-mono"
@@ -162,19 +170,23 @@ export default function RosterManager({ classId, onStudentAdded }) {
         <h3 className="text-xl font-bold text-white mb-4">Class Roster ({students.length})</h3>
 
         {loading ? (
-          <p className="text-slate-500">Loading roster...</p>
+          <p className="text-slate-500" role="status" aria-live="polite">Loading roster...</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {students.map(student => (
               <div key={student.id} className="bg-slate-700 p-4 rounded-lg border border-slate-600 relative group">
                 {editingId === student.id ? (
                    <div className="space-y-2">
+                     <label htmlFor={`edit-name-${student.id}`} className="sr-only">Student name</label>
                      <input
+                       id={`edit-name-${student.id}`}
                        className="w-full px-2 py-1 bg-slate-800 border border-slate-600 rounded text-white"
                        value={editForm.name}
                        onChange={e => setEditForm({...editForm, name: e.target.value})}
                      />
+                     <label htmlFor={`edit-pass-${student.id}`} className="sr-only">Student password</label>
                      <input
+                       id={`edit-pass-${student.id}`}
                        className="w-full px-2 py-1 bg-slate-800 border border-slate-600 rounded text-white"
                        value={editForm.password}
                        onChange={e => setEditForm({...editForm, password: e.target.value})}
@@ -187,13 +199,13 @@ export default function RosterManager({ classId, onStudentAdded }) {
                 ) : (
                   <>
                     <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => handleEdit(student)} className="p-1 text-slate-400 hover:text-white"><Edit className="w-4 h-4" /></button>
-                      <button onClick={() => handleDelete(student.id)} className="p-1 text-slate-400 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
+                      <button onClick={() => handleEdit(student)} className="p-1 text-slate-400 hover:text-white" aria-label={`Edit ${student.name}`}><Edit className="w-4 h-4" aria-hidden="true" /></button>
+                      <button onClick={() => handleDelete(student.id)} className="p-1 text-slate-400 hover:text-red-400" aria-label={`Delete ${student.name}`}><Trash2 className="w-4 h-4" aria-hidden="true" /></button>
                     </div>
 
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-lg">
+                        <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-lg" aria-hidden="true">
                           👤
                         </div>
                         <div>

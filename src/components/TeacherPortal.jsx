@@ -106,9 +106,9 @@ export default function TeacherPortal() {
       <div className="max-w-6xl mx-auto">
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-8 pb-8 border-b border-slate-700">
+        <header className="flex items-center justify-between mb-8 pb-8 border-b border-slate-700">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-green-600 rounded-lg">
+            <div className="p-3 bg-green-600 rounded-lg" aria-hidden="true">
               <GraduationCap className="w-8 h-8 text-white" />
             </div>
             <div>
@@ -120,9 +120,9 @@ export default function TeacherPortal() {
             onClick={logout}
             className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors"
           >
-            <LogOut className="w-5 h-5" /> Logout
+            <LogOut className="w-5 h-5" aria-hidden="true" /> Logout
           </button>
-        </div>
+        </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
 
@@ -133,14 +133,17 @@ export default function TeacherPortal() {
               <button
                 onClick={() => setCreatingClass(true)}
                 className="text-green-400 hover:text-green-300"
+                aria-label="Create new class"
               >
-                <Plus className="w-5 h-5" />
+                <Plus className="w-5 h-5" aria-hidden="true" />
               </button>
             </div>
 
             {creatingClass && (
-              <form onSubmit={handleCreateClass} className="mb-4 bg-slate-800 p-3 rounded-lg border border-slate-600">
+              <form onSubmit={handleCreateClass} className="mb-4 bg-slate-800 p-3 rounded-lg border border-slate-600" aria-label="Create new class">
+                <label htmlFor="new-class-name" className="sr-only">Class Name</label>
                 <input
+                  id="new-class-name"
                   autoFocus
                   type="text"
                   placeholder="Class Name"
@@ -155,25 +158,29 @@ export default function TeacherPortal() {
               </form>
             )}
 
-            <div className="space-y-2">
+            <div className="space-y-2" role="listbox" aria-label="Your classes">
               {classes.map(cls => (
                 <div
                   key={cls.id}
+                  role="option"
+                  aria-selected={selectedClass?.id === cls.id}
+                  tabIndex={0}
                   onClick={() => setSelectedClass(cls)}
+                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setSelectedClass(cls)}
                   className={`w-full p-4 rounded-xl text-left transition-all cursor-pointer relative group ${selectedClass?.id === cls.id ? 'bg-green-600 text-white shadow-lg shadow-green-900/50' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
                 >
                   <div className="font-bold text-lg pr-6">{cls.name}</div>
                   <div className="flex justify-between items-center mt-2 text-sm opacity-80">
-                    <span className="flex items-center gap-1"><Users className="w-4 h-4" /> {cls.studentCount || 0} Students</span>
+                    <span className="flex items-center gap-1"><Users className="w-4 h-4" aria-hidden="true" /> {cls.studentCount || 0} Students</span>
                     <span className="font-mono bg-black/20 px-2 rounded text-xs">Code: {cls.code}</span>
                   </div>
 
                   <button
                     onClick={(e) => handleDeleteClass(cls.id, e)}
                     className="absolute top-2 right-2 p-2 text-red-300 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="Delete Class"
+                    aria-label={`Delete class ${cls.name}`}
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-4 h-4" aria-hidden="true" />
                   </button>
                 </div>
               ))}
@@ -196,8 +203,8 @@ export default function TeacherPortal() {
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-slate-400 text-sm">Class Code:</span>
                         <code className="text-xl font-mono font-bold text-green-400 tracking-widest">{selectedClass.code}</code>
-                        <button onClick={() => copyCode(selectedClass.code)} className="text-slate-500 hover:text-white">
-                          <Copy className="w-4 h-4" />
+                        <button onClick={() => copyCode(selectedClass.code)} className="text-slate-500 hover:text-white" aria-label="Copy class code">
+                          <Copy className="w-4 h-4" aria-hidden="true" />
                         </button>
                       </div>
                     </div>
@@ -206,9 +213,9 @@ export default function TeacherPortal() {
                         onClick={handleRefresh}
                         disabled={loading}
                         className="p-2 text-slate-400 hover:text-white transition-colors"
-                        title="Refresh data"
+                        aria-label={loading ? 'Refreshing data...' : 'Refresh data'}
                       >
-                        <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+                        <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
                       </button>
                       <div className="text-right">
                         <p className="text-3xl font-black text-white">{pending.length}</p>
@@ -229,20 +236,32 @@ export default function TeacherPortal() {
                 </div>
 
                 {/* Tabs */}
-                <div className="flex gap-4 mb-6 border-b border-slate-700">
+                <div className="flex gap-4 mb-6 border-b border-slate-700" role="tablist" aria-label="Class management">
                   <button
+                    role="tab"
+                    aria-selected={activeTab === 'submissions'}
+                    aria-controls="tabpanel-submissions"
+                    id="tab-submissions"
                     onClick={() => setActiveTab('submissions')}
                     className={`pb-4 px-2 font-bold ${activeTab === 'submissions' ? 'text-green-400 border-b-2 border-green-400' : 'text-slate-400 hover:text-white'}`}
                   >
                     Submissions
                   </button>
                   <button
+                    role="tab"
+                    aria-selected={activeTab === 'students'}
+                    aria-controls="tabpanel-students"
+                    id="tab-students"
                     onClick={() => setActiveTab('students')}
                     className={`pb-4 px-2 font-bold ${activeTab === 'students' ? 'text-green-400 border-b-2 border-green-400' : 'text-slate-400 hover:text-white'}`}
                   >
                     Students
                   </button>
                   <button
+                    role="tab"
+                    aria-selected={activeTab === 'activities'}
+                    aria-controls="tabpanel-activities"
+                    id="tab-activities"
                     onClick={() => setActiveTab('activities')}
                     className={`pb-4 px-2 font-bold ${activeTab === 'activities' ? 'text-green-400 border-b-2 border-green-400' : 'text-slate-400 hover:text-white'}`}
                   >
@@ -251,32 +270,32 @@ export default function TeacherPortal() {
                 </div>
 
                 {activeTab === 'activities' && (
-                  <ActivityEditor
+                  <div role="tabpanel" id="tabpanel-activities" aria-labelledby="tab-activities"><ActivityEditor
                     classId={selectedClass.id}
                     onSave={() => alert('Activities updated!')}
-                  />
+                  /></div>
                 )}
 
                 {activeTab === 'students' && (
-                  <RosterManager
+                  <div role="tabpanel" id="tabpanel-students" aria-labelledby="tab-students"><RosterManager
                     classId={selectedClass.id}
                     onStudentAdded={() => backend.getStudents(selectedClass.id).then(setStudents)}
-                  />
+                  /></div>
                 )}
 
                 {activeTab === 'submissions' && (
-                  <>
+                  <div role="tabpanel" id="tabpanel-submissions" aria-labelledby="tab-submissions">
                     {loading ? (
-                      <div className="text-center py-12 text-slate-500">Loading submissions...</div>
+                      <div className="text-center py-12 text-slate-500" role="status" aria-live="polite">Loading submissions...</div>
                     ) : (
                       <>
                         <h3 className="font-bold text-slate-400 uppercase text-xs tracking-widest mb-4 flex items-center gap-2">
-                          <Clock className="w-4 h-4" /> Pending Reviews ({pending.length})
+                          <Clock className="w-4 h-4" aria-hidden="true" /> Pending Reviews ({pending.length})
                         </h3>
 
                         {pending.length === 0 ? (
                           <div className="bg-slate-800/50 rounded-xl p-8 text-center text-slate-500 mb-8">
-                            <CheckCircle2 className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                            <CheckCircle2 className="w-12 h-12 mx-auto mb-2 opacity-20" aria-hidden="true" />
                             No pending submissions. You're all caught up!
                           </div>
                         ) : (
@@ -290,7 +309,7 @@ export default function TeacherPortal() {
                         {reviewed.length > 0 && (
                           <>
                             <h3 className="font-bold text-slate-400 uppercase text-xs tracking-widest mb-4 flex items-center gap-2 border-t border-slate-700 pt-8">
-                              <CheckCircle2 className="w-4 h-4" /> Reviewed History
+                              <CheckCircle2 className="w-4 h-4" aria-hidden="true" /> Reviewed History
                             </h3>
                             <div className="opacity-60 hover:opacity-100 transition-opacity space-y-4">
                               {reviewed.slice(0, 5).map(sub => (
@@ -309,12 +328,12 @@ export default function TeacherPortal() {
                         )}
                       </>
                     )}
-                  </>
+                  </div>
                 )}
               </div>
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-slate-500 border-2 border-dashed border-slate-800 rounded-3xl min-h-[400px]">
-                <BookOpen className="w-16 h-16 mb-4 opacity-20" />
+                <BookOpen className="w-16 h-16 mb-4 opacity-20" aria-hidden="true" />
                 <p>Select a class to view dashboard</p>
               </div>
             )}
@@ -328,9 +347,10 @@ export default function TeacherPortal() {
 
 function SubmissionCard({ submission, onReview }) {
   const [feedback, setFeedback] = useState('');
+  const feedbackId = `feedback-${submission.id}`;
 
   return (
-    <div className="bg-slate-800 border-2 border-slate-700 rounded-xl p-6 hover:border-blue-500 transition-colors">
+    <article className="bg-slate-800 border-2 border-slate-700 rounded-xl p-6 hover:border-blue-500 transition-colors" aria-label={`Submission from ${submission.playerName}: ${submission.activityTitle}`}>
       <div className="flex justify-between items-start mb-4">
         <div>
           <h4 className="font-bold text-lg text-white">{submission.activityTitle}</h4>
@@ -369,8 +389,9 @@ function SubmissionCard({ submission, onReview }) {
 
       <div className="flex gap-4 items-end">
         <div className="flex-1">
-          <label className="text-xs text-slate-400 font-bold uppercase mb-1 block">Feedback</label>
+          <label htmlFor={feedbackId} className="text-xs text-slate-400 font-bold uppercase mb-1 block">Feedback</label>
           <input
+            id={feedbackId}
             type="text"
             value={feedback}
             onChange={e => setFeedback(e.target.value)}
@@ -391,6 +412,6 @@ function SubmissionCard({ submission, onReview }) {
           Approve (+{submission.xp} XP)
         </button>
       </div>
-    </div>
+    </article>
   );
 }
