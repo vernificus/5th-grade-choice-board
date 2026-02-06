@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { realBackend as backend } from '../services/realBackend';
-import { UserPlus, Lock, Trash2, Save, Edit, X, Check } from 'lucide-react';
+import { UserPlus, Lock, Trash2, Save, Edit, X, Check, RotateCcw } from 'lucide-react';
 
 export default function RosterManager({ classId, onStudentAdded }) {
   const [students, setStudents] = useState([]);
@@ -51,6 +51,17 @@ export default function RosterManager({ classId, onStudentAdded }) {
       loadStudents();
     } catch (error) {
       alert('Error updating student: ' + error.message);
+    }
+  };
+
+  const handleResetActivities = async (student) => {
+    if (!window.confirm(`Reset activity completion for ${student.name}?\n\nThis lets them redo activities and earn XP again. XP, coins, and achievements are kept.`)) return;
+    try {
+      await backend.resetStudentActivities(student.id);
+      alert(`Activities reset for ${student.name}.`);
+      loadStudents();
+    } catch (error) {
+      alert('Error resetting activities: ' + error.message);
     }
   };
 
@@ -199,6 +210,7 @@ export default function RosterManager({ classId, onStudentAdded }) {
                 ) : (
                   <>
                     <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => handleResetActivities(student)} className="p-1 text-slate-400 hover:text-orange-400" aria-label={`Reset activities for ${student.name}`}><RotateCcw className="w-4 h-4" aria-hidden="true" /></button>
                       <button onClick={() => handleEdit(student)} className="p-1 text-slate-400 hover:text-white" aria-label={`Edit ${student.name}`}><Edit className="w-4 h-4" aria-hidden="true" /></button>
                       <button onClick={() => handleDelete(student.id)} className="p-1 text-slate-400 hover:text-red-400" aria-label={`Delete ${student.name}`}><Trash2 className="w-4 h-4" aria-hidden="true" /></button>
                     </div>
@@ -225,6 +237,10 @@ export default function RosterManager({ classId, onStudentAdded }) {
                        <div>
                          <span className="text-slate-400 text-xs uppercase font-bold block">Level</span>
                          <p className="font-mono text-blue-400 font-bold">{Math.floor((student.xp || 0)/500)+1}</p>
+                       </div>
+                       <div>
+                         <span className="text-slate-400 text-xs uppercase font-bold block">Done</span>
+                         <p className="font-mono text-purple-400 font-bold">{(student.completedActivities || []).length}</p>
                        </div>
                     </div>
                   </>

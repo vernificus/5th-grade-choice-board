@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { realBackend as backend } from '../services/realBackend';
 import {
   Users, Plus, LogOut, BookOpen, ClipboardList, CheckCircle2,
-  XCircle, Clock, ChevronRight, GraduationCap, Copy, Trash2, Edit, RefreshCw
+  XCircle, Clock, ChevronRight, GraduationCap, Copy, Trash2, Edit, RefreshCw, RotateCcw
 } from 'lucide-react';
 import { FileViewer } from './FileViewer';
 import ActivityEditor from './ActivityEditor';
@@ -95,6 +95,22 @@ export default function TeacherPortal() {
   const copyCode = (code) => {
     navigator.clipboard.writeText(code);
     alert('Class code copied!');
+  };
+
+  const handleResetClassActivities = async () => {
+    if (!selectedClass) return;
+    if (!window.confirm(
+      `Reset all activity completion status for "${selectedClass.name}"?\n\n` +
+      'This lets all students redo activities and earn XP again.\n' +
+      'XP, coins, achievements, and streaks are NOT affected.'
+    )) return;
+    try {
+      const count = await backend.resetClassActivities(selectedClass.id);
+      alert(`Activities reset for ${count} student${count !== 1 ? 's' : ''}. They can now redo all activities.`);
+      backend.getStudents(selectedClass.id).then(setStudents);
+    } catch (error) {
+      alert('Error resetting activities: ' + error.message);
+    }
   };
 
   // Filter submissions
@@ -223,7 +239,7 @@ export default function TeacherPortal() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-4">
+                  <div className="flex items-center gap-4 mt-3">
                     <div className="text-right">
                       <p className="text-3xl font-black text-white">{students.length}</p>
                       <p className="text-slate-400 text-xs uppercase font-bold">Students</p>
@@ -231,6 +247,16 @@ export default function TeacherPortal() {
                     <div className="text-right border-l border-slate-600 pl-4">
                       <p className="text-3xl font-black text-white">{pending.length}</p>
                       <p className="text-slate-400 text-xs uppercase font-bold">Pending</p>
+                    </div>
+                    <div className="ml-auto">
+                      <button
+                        onClick={handleResetClassActivities}
+                        className="flex items-center gap-2 px-4 py-2 bg-orange-600/20 hover:bg-orange-600/40 border border-orange-500/50 text-orange-300 rounded-lg text-sm font-bold transition-colors"
+                        aria-label="Reset activity completion for all students"
+                      >
+                        <RotateCcw className="w-4 h-4" aria-hidden="true" /> Reset Activities
+                      </button>
+                      <p className="text-xs text-slate-500 mt-1">Auto-resets Mondays at 7am</p>
                     </div>
                   </div>
                 </div>
