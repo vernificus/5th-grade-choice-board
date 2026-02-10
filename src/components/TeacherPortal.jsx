@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { realBackend as backend } from '../services/realBackend';
 import {
   Users, Plus, LogOut, BookOpen, ClipboardList, CheckCircle2,
-  XCircle, Clock, ChevronRight, GraduationCap, Copy, Trash2, Edit, RefreshCw, RotateCcw
+  XCircle, Clock, ChevronRight, GraduationCap, Copy, Trash2, Edit, RefreshCw, RotateCcw, Link
 } from 'lucide-react';
 import { FileViewer } from './FileViewer';
 import ActivityEditor from './ActivityEditor';
@@ -95,6 +95,12 @@ export default function TeacherPortal() {
   const copyCode = (code) => {
     navigator.clipboard.writeText(code);
     alert('Class code copied!');
+  };
+
+  const copyJoinLink = (code) => {
+    const url = `${window.location.origin}${window.location.pathname}?code=${code}`;
+    navigator.clipboard.writeText(url);
+    alert('Join link copied!');
   };
 
   const handleResetClassActivities = async () => {
@@ -221,6 +227,9 @@ export default function TeacherPortal() {
                         <code className="text-xl font-mono font-bold text-green-400 tracking-widest">{selectedClass.code}</code>
                         <button onClick={() => copyCode(selectedClass.code)} className="text-slate-500 hover:text-white" aria-label="Copy class code">
                           <Copy className="w-4 h-4" aria-hidden="true" />
+                        </button>
+                        <button onClick={() => copyJoinLink(selectedClass.code)} className="flex items-center gap-1 text-xs text-slate-500 hover:text-white ml-2" aria-label="Copy join link">
+                          <Link className="w-4 h-4" aria-hidden="true" /> Copy Join Link
                         </button>
                       </div>
                     </div>
