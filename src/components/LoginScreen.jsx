@@ -22,6 +22,31 @@ export default function LoginScreen() {
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [studentPassword, setStudentPassword] = useState('');
 
+  // Auto-fill class code from URL parameter (e.g. ?code=A1B2C3)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const codeParam = params.get('code');
+    if (codeParam) {
+      const code = codeParam.trim().toUpperCase();
+      setClassCode(code);
+      setMode('student-join');
+      // Auto-lookup the class
+      (async () => {
+        setLoading(true);
+        try {
+          const cls = await backend.getClassByCode(code);
+          setClassInfo(cls);
+          const students = await backend.getStudents(cls.id);
+          setRoster(students);
+          setMode('student-select');
+        } catch (err) {
+          setError(err.message);
+        }
+        setLoading(false);
+      })();
+    }
+  }, []);
+
   const handleTeacherLogin = async (e) => {
     e.preventDefault();
     setError('');
