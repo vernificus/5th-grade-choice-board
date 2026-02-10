@@ -98,7 +98,7 @@ export default function TeacherPortal() {
   };
 
   const copyJoinLink = (code) => {
-    const url = `${window.location.origin}${window.location.pathname}?code=${code}`;
+    const url = `https://level-up-choice-board-game.web.app/?code=${code}`;
     navigator.clipboard.writeText(url);
     alert('Join link copied!');
   };
