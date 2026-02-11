@@ -86,8 +86,24 @@ export function useGameState() {
       if (customPaths && customPaths.length > 0) {
         setLearningPaths(customPaths);
       }
+
+      // Load custom category names from class document
+      const classDoc = await backend.getClass(user.classId);
+      if (classDoc) {
+        applyCustomCategoryNames(classDoc);
+      }
     } catch (e) {
       console.error("Failed to load class activities", e);
+    }
+  };
+
+  const applyCustomCategoryNames = (classDoc) => {
+    if (classDoc.categoryNames || classDoc.categorySubtitles) {
+      setLearningPaths(prev => prev.map(path => ({
+        ...path,
+        title: classDoc.categoryNames?.[path.id] || path.title,
+        subtitle: classDoc.categorySubtitles?.[path.id] || path.subtitle,
+      })));
     }
   };
 

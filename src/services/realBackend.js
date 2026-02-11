@@ -184,6 +184,30 @@ export const realBackend = {
     }
   },
 
+  async getClass(classId) {
+    try {
+      const docSnap = await getDoc(doc(db, "classes", classId));
+      if (docSnap.exists()) {
+        return { id: docSnap.id, ...docSnap.data() };
+      }
+      return null;
+    } catch (error) {
+      console.error("Error getting class:", error);
+      return null;
+    }
+  },
+
+  async updateClass(classId, updates) {
+    try {
+      const classRef = doc(db, "classes", classId);
+      await updateDoc(classRef, updates);
+      return { id: classId, ...updates };
+    } catch (error) {
+      console.error("Error updating class:", error);
+      throw error;
+    }
+  },
+
   async deleteClass(classId) {
     try {
       await deleteDoc(doc(db, "classes", classId));

@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { realBackend as backend } from '../services/realBackend';
 import {
   Users, Plus, LogOut, BookOpen, ClipboardList, CheckCircle2,
-  XCircle, Clock, ChevronRight, GraduationCap, Copy, Trash2, Edit, RefreshCw, RotateCcw, Link
+  XCircle, Clock, ChevronRight, GraduationCap, Copy, Trash2, Edit, RefreshCw, RotateCcw, Link, Save, Gift
 } from 'lucide-react';
 import { FileViewer } from './FileViewer';
 import ActivityEditor from './ActivityEditor';
@@ -18,7 +18,10 @@ export default function TeacherPortal() {
   const [loading, setLoading] = useState(false);
   const [creatingClass, setCreatingClass] = useState(false);
   const [newClassName, setNewClassName] = useState('');
-  const [activeTab, setActiveTab] = useState('submissions'); // 'submissions', 'students', 'activities'
+  const [activeTab, setActiveTab] = useState('submissions'); // 'submissions', 'students', 'activities', 'categories'
+  const [categoryNames, setCategoryNames] = useState({ path1: '', path2: '', path3: '' });
+  const [categorySubtitles, setCategorySubtitles] = useState({ path1: '', path2: '', path3: '' });
+  const [savingCategories, setSavingCategories] = useState(false);
 
   useEffect(() => {
     loadClasses();
@@ -90,6 +93,37 @@ export default function TeacherPortal() {
         // Since we have realtime subscriptions for submissions, we mostly need to refresh students/metadata
         backend.getStudents(selectedClass.id).then(setStudents);
     }
+  };
+
+  // Load category names when class changes
+  useEffect(() => {
+    if (selectedClass) {
+      setCategoryNames({
+        path1: selectedClass.categoryNames?.path1 || 'The Wordsmith',
+        path2: selectedClass.categoryNames?.path2 || 'The Data Scientist',
+        path3: selectedClass.categoryNames?.path3 || 'The Creator',
+      });
+      setCategorySubtitles({
+        path1: selectedClass.categorySubtitles?.path1 || 'Vocabulary Quest',
+        path2: selectedClass.categorySubtitles?.path2 || 'Progress Mission',
+        path3: selectedClass.categorySubtitles?.path3 || 'Expression Boss',
+      });
+    }
+  }, [selectedClass]);
+
+  const handleSaveCategories = async () => {
+    if (!selectedClass) return;
+    setSavingCategories(true);
+    try {
+      await backend.updateClass(selectedClass.id, { categoryNames, categorySubtitles });
+      // Update local class data
+      setSelectedClass(prev => ({ ...prev, categoryNames, categorySubtitles }));
+      setClasses(prev => prev.map(c => c.id === selectedClass.id ? { ...c, categoryNames, categorySubtitles } : c));
+      alert('Category names saved!');
+    } catch (error) {
+      alert('Error saving categories: ' + error.message);
+    }
+    setSavingCategories(false);
   };
 
   const copyCode = (code) => {
@@ -302,6 +336,16 @@ export default function TeacherPortal() {
                   >
                     Activities
                   </button>
+                  <button
+                    role="tab"
+                    aria-selected={activeTab === 'categories'}
+                    aria-controls="tabpanel-categories"
+                    id="tab-categories"
+                    onClick={() => setActiveTab('categories')}
+                    className={`pb-4 px-2 font-bold ${activeTab === 'categories' ? 'text-green-400 border-b-2 border-green-400' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    Categories
+                  </button>
                 </div>
 
                 {activeTab === 'activities' && (
@@ -309,6 +353,56 @@ export default function TeacherPortal() {
                     classId={selectedClass.id}
                     onSave={() => alert('Activities updated!')}
                   /></div>
+                )}
+
+                {activeTab === 'categories' && (
+                  <div role="tabpanel" id="tabpanel-categories" aria-labelledby="tab-categories">
+                    <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                      <h3 className="text-xl font-bold text-white mb-2">Category Names</h3>
+                      <p className="text-slate-400 text-sm mb-6">Customize the three learning path category names and subtitles that students see.</p>
+                      <div className="space-y-6">
+                        {[
+                          { key: 'path1', color: 'border-blue-500', defaultName: 'The Wordsmith', defaultSub: 'Vocabulary Quest' },
+                          { key: 'path2', color: 'border-purple-500', defaultName: 'The Data Scientist', defaultSub: 'Progress Mission' },
+                          { key: 'path3', color: 'border-orange-500', defaultName: 'The Creator', defaultSub: 'Expression Boss' },
+                        ].map(({ key, color, defaultName, defaultSub }) => (
+                          <div key={key} className={`p-4 bg-slate-700 rounded-lg border-l-4 ${color}`}>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label htmlFor={`cat-name-${key}`} className="block text-xs text-slate-400 font-bold uppercase mb-1">Category Name</label>
+                                <input
+                                  id={`cat-name-${key}`}
+                                  type="text"
+                                  value={categoryNames[key]}
+                                  onChange={e => setCategoryNames(prev => ({ ...prev, [key]: e.target.value }))}
+                                  placeholder={defaultName}
+                                  className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:border-green-500 outline-none"
+                                />
+                              </div>
+                              <div>
+                                <label htmlFor={`cat-sub-${key}`} className="block text-xs text-slate-400 font-bold uppercase mb-1">Subtitle</label>
+                                <input
+                                  id={`cat-sub-${key}`}
+                                  type="text"
+                                  value={categorySubtitles[key]}
+                                  onChange={e => setCategorySubtitles(prev => ({ ...prev, [key]: e.target.value }))}
+                                  placeholder={defaultSub}
+                                  className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:border-green-500 outline-none"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        onClick={handleSaveCategories}
+                        disabled={savingCategories}
+                        className="mt-6 flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        <Save className="w-4 h-4" aria-hidden="true" /> {savingCategories ? 'Saving...' : 'Save Category Names'}
+                      </button>
+                    </div>
+                  </div>
                 )}
 
                 {activeTab === 'students' && (
