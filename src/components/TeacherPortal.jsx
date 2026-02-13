@@ -3,7 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import { realBackend as backend } from '../services/realBackend';
 import {
   Users, Plus, LogOut, BookOpen, ClipboardList, CheckCircle2,
-  XCircle, Clock, ChevronRight, GraduationCap, Copy, Trash2, Edit, RefreshCw, RotateCcw, Link, Save, Gift
+  XCircle, Clock, ChevronRight, GraduationCap, Copy, Trash2, Edit, RefreshCw, RotateCcw, Link, Save, Gift,
+  Share2, UserPlus, X, Mail
 } from 'lucide-react';
 import { FileViewer } from './FileViewer';
 import ActivityEditor from './ActivityEditor';
@@ -22,6 +23,11 @@ export default function TeacherPortal() {
   const [categoryNames, setCategoryNames] = useState({ path1: '', path2: '', path3: '' });
   const [categorySubtitles, setCategorySubtitles] = useState({ path1: '', path2: '', path3: '' });
   const [savingCategories, setSavingCategories] = useState(false);
+
+  // Co-teacher state
+  const [coTeachers, setCoTeachers] = useState([]);
+  const [coTeacherEmail, setCoTeacherEmail] = useState('');
+  const [addingCoTeacher, setAddingCoTeacher] = useState(false);
 
   useEffect(() => {
     loadClasses();
@@ -92,6 +98,41 @@ export default function TeacherPortal() {
         // Trigger reload by resetting selectedClass briefly or just calling fetch
         // Since we have realtime subscriptions for submissions, we mostly need to refresh students/metadata
         backend.getStudents(selectedClass.id).then(setStudents);
+    }
+  };
+
+  // Load co-teachers when class changes
+  useEffect(() => {
+    if (selectedClass) {
+      backend.getCoTeachers(selectedClass.id).then(setCoTeachers);
+    } else {
+      setCoTeachers([]);
+    }
+  }, [selectedClass]);
+
+  const handleAddCoTeacher = async (e) => {
+    e.preventDefault();
+    if (!coTeacherEmail.trim()) return;
+    setAddingCoTeacher(true);
+    try {
+      await backend.addCoTeacher(selectedClass.id, coTeacherEmail.trim().toLowerCase());
+      setCoTeacherEmail('');
+      const updated = await backend.getCoTeachers(selectedClass.id);
+      setCoTeachers(updated);
+      alert('Co-teacher added!');
+    } catch (error) {
+      alert(error.message);
+    }
+    setAddingCoTeacher(false);
+  };
+
+  const handleRemoveCoTeacher = async (coTeacherId, coTeacherName) => {
+    if (!window.confirm(`Remove ${coTeacherName} as co-teacher?`)) return;
+    try {
+      await backend.removeCoTeacher(selectedClass.id, coTeacherId);
+      setCoTeachers(prev => prev.filter(t => t.id !== coTeacherId));
+    } catch (error) {
+      alert(error.message);
     }
   };
 
@@ -346,6 +387,16 @@ export default function TeacherPortal() {
                   >
                     Categories
                   </button>
+                  <button
+                    role="tab"
+                    aria-selected={activeTab === 'sharing'}
+                    aria-controls="tabpanel-sharing"
+                    id="tab-sharing"
+                    onClick={() => setActiveTab('sharing')}
+                    className={`pb-4 px-2 font-bold ${activeTab === 'sharing' ? 'text-green-400 border-b-2 border-green-400' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    Sharing
+                  </button>
                 </div>
 
                 {activeTab === 'activities' && (
@@ -401,6 +452,105 @@ export default function TeacherPortal() {
                       >
                         <Save className="w-4 h-4" aria-hidden="true" /> {savingCategories ? 'Saving...' : 'Save Category Names'}
                       </button>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'sharing' && (
+                  <div role="tabpanel" id="tabpanel-sharing" aria-labelledby="tab-sharing">
+                    <div className="space-y-6">
+                      {/* Student Join Link */}
+                      <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                        <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+                          <Link className="w-5 h-5 text-blue-400" aria-hidden="true" /> Student Join Link
+                        </h3>
+                        <p className="text-slate-400 text-sm mb-4">
+                          Share this link with students. They can create their own account and join the class directly.
+                        </p>
+                        <div className="flex items-center gap-3 bg-slate-900 p-3 rounded-lg border border-slate-700">
+                          <code className="flex-1 text-blue-400 text-sm break-all">
+                            {`${window.location.origin}/?code=${selectedClass.code}`}
+                          </code>
+                          <button
+                            onClick={() => copyJoinLink(selectedClass.code)}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-sm whitespace-nowrap"
+                          >
+                            <Copy className="w-4 h-4" aria-hidden="true" /> Copy Link
+                          </button>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-2">
+                          Students who use this link can sign up with their own name and password. You can edit their info from the Students tab.
+                        </p>
+                      </div>
+
+                      {/* Co-Teacher Management */}
+                      <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                        <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+                          <Share2 className="w-5 h-5 text-purple-400" aria-hidden="true" /> Co-Teachers
+                        </h3>
+                        <p className="text-slate-400 text-sm mb-4">
+                          Add other teachers to help manage this class. They'll see it in their dashboard and can review submissions, manage students, and edit activities.
+                        </p>
+
+                        {!selectedClass.isCoTeacher && (
+                          <form onSubmit={handleAddCoTeacher} className="flex gap-3 mb-6" aria-label="Add co-teacher">
+                            <div className="flex-1 relative">
+                              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" aria-hidden="true" />
+                              <label htmlFor="co-teacher-email" className="sr-only">Co-teacher email</label>
+                              <input
+                                id="co-teacher-email"
+                                type="email"
+                                placeholder="Enter teacher's email address"
+                                value={coTeacherEmail}
+                                onChange={e => setCoTeacherEmail(e.target.value)}
+                                className="w-full px-4 py-2 pl-10 bg-slate-700 rounded-lg text-white border border-slate-600 focus:border-purple-500 outline-none"
+                              />
+                            </div>
+                            <button
+                              type="submit"
+                              disabled={addingCoTeacher}
+                              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-sm disabled:opacity-50"
+                            >
+                              <UserPlus className="w-4 h-4" aria-hidden="true" /> {addingCoTeacher ? 'Adding...' : 'Add'}
+                            </button>
+                          </form>
+                        )}
+
+                        {selectedClass.isCoTeacher && (
+                          <div className="mb-4 p-3 bg-purple-900/20 border border-purple-500/30 rounded-lg text-purple-300 text-sm">
+                            You are a co-teacher on this class. Only the class owner can add or remove co-teachers.
+                          </div>
+                        )}
+
+                        {coTeachers.length > 0 ? (
+                          <div className="space-y-2">
+                            {coTeachers.map(ct => (
+                              <div key={ct.id} className="flex items-center justify-between p-3 bg-slate-700 rounded-lg border border-slate-600">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center text-sm font-bold text-white" aria-hidden="true">
+                                    {ct.name?.charAt(0)?.toUpperCase() || '?'}
+                                  </div>
+                                  <div>
+                                    <p className="font-bold text-white text-sm">{ct.name}</p>
+                                    <p className="text-xs text-slate-400">{ct.email}</p>
+                                  </div>
+                                </div>
+                                {!selectedClass.isCoTeacher && (
+                                  <button
+                                    onClick={() => handleRemoveCoTeacher(ct.id, ct.name)}
+                                    className="p-2 text-slate-400 hover:text-red-400 transition-colors"
+                                    aria-label={`Remove ${ct.name} as co-teacher`}
+                                  >
+                                    <X className="w-4 h-4" aria-hidden="true" />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-slate-500 text-sm italic">No co-teachers added yet.</p>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}

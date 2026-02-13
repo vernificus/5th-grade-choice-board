@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { BookOpen, Users, LogIn, UserPlus, ArrowRight, GraduationCap, Lock, User } from 'lucide-react';
+import { BookOpen, Users, LogIn, UserPlus, ArrowRight, GraduationCap, Lock, User, UserCheck } from 'lucide-react';
 import { realBackend as backend } from '../services/realBackend';
 
 export default function LoginScreen() {
-  const { loginTeacher, registerTeacher, loginStudent } = useAuth();
+  const { loginTeacher, registerTeacher, loginStudent, signupStudent } = useAuth();
 
-  const [mode, setMode] = useState('select'); // select, teacher-login, teacher-signup, student-join, student-select, student-password
+  const [mode, setMode] = useState('select'); // select, teacher-login, teacher-signup, student-join, student-select, student-password, student-signup
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -21,6 +21,11 @@ export default function LoginScreen() {
   const [roster, setRoster] = useState([]);
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [studentPassword, setStudentPassword] = useState('');
+
+  // Student self-signup states
+  const [signupName, setSignupName] = useState('');
+  const [signupPassword, setSignupPassword] = useState('');
+  const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
 
   // Auto-fill class code from URL parameter (e.g. ?code=A1B2C3)
   useEffect(() => {
@@ -98,6 +103,33 @@ export default function LoginScreen() {
     setLoading(false);
   };
 
+  const handleStudentSignup = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    if (!signupName.trim()) {
+      setError('Please enter your name.');
+      return;
+    }
+    if (!signupPassword.trim()) {
+      setError('Please set a password.');
+      return;
+    }
+    if (signupPassword !== signupConfirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await signupStudent(classInfo.id, signupName.trim(), signupPassword);
+      if (!result.success) setError(result.error);
+    } catch (err) {
+      setError(err.message);
+    }
+    setLoading(false);
+  };
+
   const BackButton = () => (
     <button
       type="button"
@@ -105,6 +137,7 @@ export default function LoginScreen() {
         setError('');
         if (mode === 'student-select') setMode('student-join');
         else if (mode === 'student-password') setMode('student-select');
+        else if (mode === 'student-signup') setMode('student-select');
         else setMode('select');
       }}
       className="absolute top-4 left-4 text-slate-400 hover:text-white flex items-center gap-1"
@@ -318,8 +351,18 @@ export default function LoginScreen() {
                 </button>
               ))}
               {roster.length === 0 && (
-                <p className="text-center text-slate-500 py-4" role="status">No students found. Ask your teacher to add you!</p>
+                <p className="text-center text-slate-500 py-4" role="status">No students yet. Be the first to join!</p>
               )}
+            </div>
+
+            <div className="border-t border-slate-700 pt-4 mt-4">
+              <button
+                onClick={() => { setError(''); setMode('student-signup'); }}
+                className="w-full p-4 bg-green-600 hover:bg-green-500 rounded-xl text-center transition-colors flex items-center justify-center gap-2"
+              >
+                <UserPlus className="w-5 h-5 text-white" aria-hidden="true" />
+                <span className="font-bold text-white">I'm New - Create My Account</span>
+              </button>
             </div>
           </div>
         )}
@@ -354,6 +397,75 @@ export default function LoginScreen() {
               className="w-full py-3 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
             >
               {loading ? 'Verifying...' : <><LogIn className="w-5 h-5" aria-hidden="true" /> Start Game</>}
+            </button>
+          </form>
+        )}
+
+        {/* Student Self-Signup */}
+        {mode === 'student-signup' && (
+          <form onSubmit={handleStudentSignup} className="space-y-4" aria-labelledby="student-signup-heading">
+            <BackButton />
+            <h2 id="student-signup-heading" className="text-xl font-bold text-white text-center mb-2">Create Your Account</h2>
+            <p className="text-center text-slate-400 text-sm mb-4">Joining: <span className="font-bold text-white">{classInfo?.name}</span></p>
+
+            <div>
+              <label htmlFor="student-signup-name" className="block text-sm text-slate-400 mb-1">Your Name</label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" aria-hidden="true" />
+                <input
+                  id="student-signup-name"
+                  type="text"
+                  required
+                  autoFocus
+                  placeholder="Enter your name"
+                  value={signupName}
+                  onChange={e => setSignupName(e.target.value)}
+                  className="w-full px-4 py-3 pl-10 bg-slate-700 border border-slate-600 rounded-lg text-white focus:border-green-500 focus:outline-none"
+                  autoComplete="name"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="student-signup-password" className="block text-sm text-slate-400 mb-1">Create a Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" aria-hidden="true" />
+                <input
+                  id="student-signup-password"
+                  type="password"
+                  required
+                  placeholder="Choose a password"
+                  value={signupPassword}
+                  onChange={e => setSignupPassword(e.target.value)}
+                  className="w-full px-4 py-3 pl-10 bg-slate-700 border border-slate-600 rounded-lg text-white focus:border-green-500 focus:outline-none"
+                  autoComplete="new-password"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="student-signup-confirm" className="block text-sm text-slate-400 mb-1">Confirm Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" aria-hidden="true" />
+                <input
+                  id="student-signup-confirm"
+                  type="password"
+                  required
+                  placeholder="Type password again"
+                  value={signupConfirmPassword}
+                  onChange={e => setSignupConfirmPassword(e.target.value)}
+                  className="w-full px-4 py-3 pl-10 bg-slate-700 border border-slate-600 rounded-lg text-white focus:border-green-500 focus:outline-none"
+                  autoComplete="new-password"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              {loading ? 'Creating Account...' : <><UserPlus className="w-5 h-5" aria-hidden="true" /> Join Class & Start Playing</>}
             </button>
           </form>
         )}

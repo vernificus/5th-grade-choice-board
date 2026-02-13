@@ -49,6 +49,18 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const signupStudent = async (classId, name, password) => {
+    try {
+      const newStudent = await backend.studentSelfSignup(classId, name, password);
+      const studentUser = { ...newStudent, role: 'student' };
+      setUser(studentUser);
+      sessionStorage.setItem('lvlup_user', JSON.stringify(studentUser));
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  };
+
   const joinClassAsStudent = async (classCode, username) => {
      // Legacy method, might not be used with Roster Mode, but keeping for backward compat if needed
      // or for "Join by Code" without roster if we enable that.
@@ -70,6 +82,7 @@ export function AuthProvider({ children }) {
     loginTeacher,
     registerTeacher,
     loginStudent,
+    signupStudent,
     joinClassAsStudent,
     logout
   };
