@@ -11,12 +11,25 @@ export default function ActivityEditor({ classId, onSave, onCancel }) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Load existing custom activities for this class if any
+    // Load existing custom activities and category names for this class
     const loadData = async () => {
       setLoading(true);
-      const customPaths = await backend.getClassActivities(classId);
-      if (customPaths) {
-        setLearningPaths(customPaths);
+      const classDoc = await backend.getClass(classId);
+      if (classDoc) {
+        let paths = classDoc.activities && classDoc.activities.length > 0
+          ? classDoc.activities
+          : DEFAULT_PATHS;
+
+        // Apply custom category names so headers reflect teacher's choices
+        if (classDoc.categoryNames || classDoc.categorySubtitles) {
+          paths = paths.map(path => ({
+            ...path,
+            title: classDoc.categoryNames?.[path.id] || path.title,
+            subtitle: classDoc.categorySubtitles?.[path.id] || path.subtitle,
+          }));
+        }
+
+        setLearningPaths(paths);
       }
       setLoading(false);
     };

@@ -82,28 +82,27 @@ export function useGameState() {
   const loadClassActivities = async () => {
     if (!user.classId) return;
     try {
-      const customPaths = await backend.getClassActivities(user.classId);
-      if (customPaths && customPaths.length > 0) {
-        setLearningPaths(customPaths);
+      // Fetch the class document once to get both activities and category names
+      const classDoc = await backend.getClass(user.classId);
+      if (!classDoc) return;
+
+      // Start with custom activities if saved, otherwise keep defaults
+      let paths = classDoc.activities && classDoc.activities.length > 0
+        ? classDoc.activities
+        : DEFAULT_PATHS;
+
+      // Apply custom category names/subtitles on top
+      if (classDoc.categoryNames || classDoc.categorySubtitles) {
+        paths = paths.map(path => ({
+          ...path,
+          title: classDoc.categoryNames?.[path.id] || path.title,
+          subtitle: classDoc.categorySubtitles?.[path.id] || path.subtitle,
+        }));
       }
 
-      // Load custom category names from class document
-      const classDoc = await backend.getClass(user.classId);
-      if (classDoc) {
-        applyCustomCategoryNames(classDoc);
-      }
+      setLearningPaths(paths);
     } catch (e) {
       console.error("Failed to load class activities", e);
-    }
-  };
-
-  const applyCustomCategoryNames = (classDoc) => {
-    if (classDoc.categoryNames || classDoc.categorySubtitles) {
-      setLearningPaths(prev => prev.map(path => ({
-        ...path,
-        title: classDoc.categoryNames?.[path.id] || path.title,
-        subtitle: classDoc.categorySubtitles?.[path.id] || path.subtitle,
-      })));
     }
   };
 
