@@ -12,17 +12,20 @@ service cloud.firestore {
     }
 
     function isTeacherOfClass(classId) {
-      // Get the class document to check the teacherId
+      // Get the class document to check the teacherId or coTeacherIds
       let classData = get(/databases/$(database)/documents/classes/$(classId)).data;
-      return classData.teacherId == request.auth.uid;
+      return classData.teacherId == request.auth.uid
+        || (classData.coTeacherIds != null && request.auth.uid in classData.coTeacherIds);
     }
 
     // =========================================================
 
     // TEACHERS
-    // Only the teacher can read/write their own profile
+    // Any authenticated user can read teacher profiles (needed for co-teacher lookups)
+    // Only the teacher can write their own profile
     match /teachers/{teacherId} {
-      allow read, write: if isOwner(teacherId);
+      allow read: if isAuthenticated();
+      allow write: if isOwner(teacherId);
     }
 
     // CLASSES
@@ -33,9 +36,10 @@ service cloud.firestore {
       // Only authenticated users can create classes
       allow create: if isAuthenticated() && request.resource.data.teacherId == request.auth.uid;
 
-      // Teachers can update anything.
+      // Teachers and co-teachers can update anything.
       // Students (unauthenticated or not owner) can ONLY update 'studentCount'.
-      allow update: if (isAuthenticated() && resource.data.teacherId == request.auth.uid) ||
+      allow update: if (isAuthenticated() && (resource.data.teacherId == request.auth.uid
+                    || (resource.data.coTeacherIds != null && request.auth.uid in resource.data.coTeacherIds))) ||
                     (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['studentCount']));
 
       allow delete: if isAuthenticated() && resource.data.teacherId == request.auth.uid;
@@ -55,6 +59,7 @@ service cloud.firestore {
     match /submissions/{submissionId} {
       allow create: if true;
       allow read: if true;
+      // Teachers and co-teachers can review submissions
       allow update: if isAuthenticated() && isTeacherOfClass(resource.data.classId);
     }
 
