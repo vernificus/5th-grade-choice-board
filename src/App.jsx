@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Gamepad2, Mic, BarChart3, Palette, CheckCircle2, Trophy, Rocket, Info, X, PlayCircle,
   Star, Gift, Swords, Users, User, Sparkles, Zap, Shield, Crown, Target,
-  Upload, Link, Clock, CheckCheck, XCircle, ClipboardList, Lock, Eye, FileText, LogOut
+  Upload, Link, Link2, Clock, CheckCheck, XCircle, ClipboardList, Lock, Eye, FileText, LogOut
 } from 'lucide-react';
 import { useGameState } from './hooks/useGameState';
 import {
@@ -794,6 +794,60 @@ function ActivityCard({ path, selectedOption, onSelect, completedActivities, pen
 }
 
 // ============== INSTRUCTION MODAL ==============
+// Render text with basic markdown-style formatting: **bold** and *italic*
+function renderFormattedText(text) {
+  if (!text) return null;
+  const parts = [];
+  const regex = /(\*\*(.+?)\*\*|\*(.+?)\*)/g;
+  let lastIndex = 0;
+  let key = 0;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(<span key={key++}>{text.slice(lastIndex, match.index)}</span>);
+    }
+    if (match[2]) {
+      parts.push(<strong key={key++} className="font-bold text-white">{match[2]}</strong>);
+    } else if (match[3]) {
+      parts.push(<em key={key++} className="italic text-slate-200">{match[3]}</em>);
+    }
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(<span key={key++}>{text.slice(lastIndex)}</span>);
+  }
+
+  return parts.length > 0 ? parts : text;
+}
+
+// Render a single step, handling both old string format and new object format
+function renderStep(step, idx) {
+  // Backward compat: old steps are plain strings
+  const stepObj = typeof step === 'string' ? { text: step } : step;
+
+  return (
+    <li key={idx} className="flex gap-3 text-slate-300">
+      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-slate-700 text-yellow-500 flex items-center justify-center text-xs font-bold border border-slate-600">{idx + 1}</span>
+      <div className="text-sm leading-relaxed">
+        <span>{renderFormattedText(stepObj.text)}</span>
+        {stepObj.link && (
+          <a
+            href={stepObj.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 ml-1 text-blue-400 hover:text-blue-300 underline transition-colors"
+          >
+            <Link2 className="w-3 h-3" aria-hidden="true" />
+            {stepObj.linkText || stepObj.link}
+          </a>
+        )}
+      </div>
+    </li>
+  );
+}
+
 function InstructionModal({ activity, path, onSubmit, onClose, dailyQuest, dailyCompleted, isPending, isCompleted }) {
   const [showSubmitForm, setShowSubmitForm] = useState(false);
 
@@ -842,22 +896,19 @@ function InstructionModal({ activity, path, onSubmit, onClose, dailyQuest, daily
             <div className="space-y-4 mb-8">
               <h4 className="font-bold text-slate-300 uppercase text-xs tracking-widest">How to Play:</h4>
               <ol className="space-y-3">
-                {activity.steps.map((step, idx) => (
-                  <li key={idx} className="flex gap-3 text-slate-300">
-                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-slate-700 text-yellow-500 flex items-center justify-center text-xs font-bold border border-slate-600">{idx + 1}</span>
-                    <span className="text-sm leading-relaxed">{step}</span>
-                  </li>
-                ))}
+                {activity.steps.map((step, idx) => renderStep(step, idx))}
               </ol>
             </div>
 
-            <div className="bg-blue-600/20 border border-blue-500/30 p-4 rounded-xl mb-6">
-              <div className="flex items-center gap-2 mb-1 text-blue-400">
-                <Trophy className="w-4 h-4" />
-                <span className="text-xs font-black uppercase tracking-widest">Pro Tip</span>
+            {activity.proTip && (
+              <div className="bg-blue-600/20 border border-blue-500/30 p-4 rounded-xl mb-6">
+                <div className="flex items-center gap-2 mb-1 text-blue-400">
+                  <Trophy className="w-4 h-4" />
+                  <span className="text-xs font-black uppercase tracking-widest">Pro Tip</span>
+                </div>
+                <p className="text-sm text-blue-100">{renderFormattedText(activity.proTip)}</p>
               </div>
-              <p className="text-sm text-blue-100">{activity.proTip}</p>
-            </div>
+            )}
 
             {isCompleted ? (
               <div className="text-center text-green-400 font-bold py-3" role="status">
