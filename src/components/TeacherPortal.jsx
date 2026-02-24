@@ -4,7 +4,7 @@ import { realBackend as backend } from '../services/realBackend';
 import {
   Users, Plus, LogOut, BookOpen, ClipboardList, CheckCircle2,
   XCircle, Clock, ChevronRight, GraduationCap, Copy, Trash2, Edit, RefreshCw, RotateCcw, Link, Save, Gift,
-  Share2, UserPlus, X, Mail
+  Share2, UserPlus, X, Mail, MessageSquare
 } from 'lucide-react';
 import { FileViewer } from './FileViewer';
 import ActivityEditor from './ActivityEditor';
@@ -641,11 +641,20 @@ function SubmissionCard({ submission, onReview }) {
       </div>
 
       <div className="bg-slate-900/50 p-4 rounded-lg mb-4 border border-slate-800">
-        <p className="text-xs text-slate-500 uppercase font-bold mb-2">Submission Content:</p>
+        <p className="text-xs text-slate-500 uppercase font-bold mb-2 flex items-center gap-1.5">
+          {submission.submissionType === 'text' && <><MessageSquare className="w-3.5 h-3.5" aria-hidden="true" /> Written Response:</>}
+          {submission.submissionType === 'link' && <>Submission Link:</>}
+          {submission.submissionType === 'file' && <>Uploaded File:</>}
+          {!['text', 'link', 'file'].includes(submission.submissionType) && <>Submission Content:</>}
+        </p>
         {submission.submissionType === 'link' ? (
           <a href={submission.submissionContent} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline break-all block p-2 bg-slate-800 rounded">
             {submission.submissionContent}
           </a>
+        ) : submission.submissionType === 'text' ? (
+          <div className="p-3 bg-slate-800 rounded-lg text-slate-200 text-sm leading-relaxed whitespace-pre-wrap">
+            {submission.submissionContent}
+          </div>
         ) : (
           <div className="p-2 bg-slate-800 rounded">
             {submission.submissionContent ? (
