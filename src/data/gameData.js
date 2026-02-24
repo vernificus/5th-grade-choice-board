@@ -1,13 +1,14 @@
 // XP and Leveling System
+// coinReward: coins granted when a student reaches this level
 export const LEVELS = [
-  { level: 1, title: 'Rookie', xpRequired: 0, color: 'text-slate-400' },
-  { level: 2, title: 'Apprentice', xpRequired: 200, color: 'text-green-400' },
-  { level: 3, title: 'Challenger', xpRequired: 500, color: 'text-blue-400' },
-  { level: 4, title: 'Warrior', xpRequired: 900, color: 'text-purple-400' },
-  { level: 5, title: 'Champion', xpRequired: 1400, color: 'text-yellow-400' },
-  { level: 6, title: 'Master', xpRequired: 2000, color: 'text-orange-400' },
-  { level: 7, title: 'Legend', xpRequired: 2800, color: 'text-red-400' },
-  { level: 8, title: 'Mythic', xpRequired: 3800, color: 'text-pink-400' },
+  { level: 1, title: 'Rookie', xpRequired: 0, color: 'text-slate-400', coinReward: 0 },
+  { level: 2, title: 'Apprentice', xpRequired: 200, color: 'text-green-400', coinReward: 25 },
+  { level: 3, title: 'Challenger', xpRequired: 500, color: 'text-blue-400', coinReward: 50 },
+  { level: 4, title: 'Warrior', xpRequired: 900, color: 'text-purple-400', coinReward: 75 },
+  { level: 5, title: 'Champion', xpRequired: 1400, color: 'text-yellow-400', coinReward: 100 },
+  { level: 6, title: 'Master', xpRequired: 2000, color: 'text-orange-400', coinReward: 125 },
+  { level: 7, title: 'Legend', xpRequired: 2800, color: 'text-red-400', coinReward: 150 },
+  { level: 8, title: 'Mythic', xpRequired: 3800, color: 'text-pink-400', coinReward: 200 },
 ];
 
 export const XP_REWARDS = {
