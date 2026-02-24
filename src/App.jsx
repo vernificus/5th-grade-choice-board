@@ -13,6 +13,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import LoginScreen from './components/LoginScreen';
 import TeacherPortal from './components/TeacherPortal';
 import { FileViewer } from './components/FileViewer';
+import Avatar3D, { AvatarColorSwatch, AvatarPreviewHead } from './components/Avatar3D';
 
 const IconMap = { Mic, BarChart3, Palette };
 
@@ -27,14 +28,7 @@ function PlayerStats({ gameState, getCurrentLevel, getNextLevelXp, onOpenProfile
     <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <button onClick={onOpenProfile} className="flex items-center gap-3 hover:opacity-80 transition-opacity" aria-label={`Open profile for ${gameState.playerName || 'Player'}, Level ${currentLevel.level} ${currentLevel.title}`}>
-          <div className={`w-12 h-12 rounded-full ${AVATAR_ITEMS.colors.find(c => c.id === gameState.avatar.color)?.value || 'bg-blue-500'} flex items-center justify-center text-2xl relative`} aria-hidden="true">
-            {AVATAR_ITEMS.faces.find(f => f.id === gameState.avatar.face)?.emoji || '😊'}
-            {gameState.avatar.hat !== 'none' && (
-              <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-lg">
-                {AVATAR_ITEMS.hats.find(h => h.id === gameState.avatar.hat)?.emoji}
-              </span>
-            )}
-          </div>
+          <Avatar3D avatar={gameState.avatar} level={currentLevel.level} size="sm" />
           <div className="text-left">
             <p className="font-bold text-white">{gameState.playerName || 'Player'}</p>
             <p className={`text-sm font-bold ${currentLevel.color}`}>Lv.{currentLevel.level} {currentLevel.title}</p>
@@ -606,24 +600,31 @@ function TrophyCase({ achievements, onClose }) {
 }
 
 // ============== AVATAR BUILDER ==============
-function AvatarBuilder({ gameState, onBuy, onEquip, onClose, onSetName }) {
+function AvatarBuilder({ gameState, getCurrentLevel, onBuy, onEquip, onClose, onSetName }) {
   const [activeTab, setActiveTab] = useState('colors');
   const [editingName, setEditingName] = useState(false);
   const [tempName, setTempName] = useState(gameState.playerName);
+  const currentLevel = getCurrentLevel ? getCurrentLevel() : { level: 1 };
 
   const tabs = [
-    { id: 'colors', label: 'Colors' },
-    { id: 'hats', label: 'Hats' },
-    { id: 'accessories', label: 'Flair' },
-    { id: 'faces', label: 'Faces' },
+    { id: 'colors', label: 'Skin' },
+    { id: 'hats', label: 'Headgear' },
+    { id: 'accessories', label: 'Effects' },
+    { id: 'faces', label: 'Expression' },
   ];
 
   const items = AVATAR_ITEMS[activeTab] || [];
 
+  // Build a preview avatar with an item temporarily applied
+  const previewAvatar = (item) => {
+    const category = activeTab.slice(0, -1); // colors→color, hats→hat, etc.
+    return { ...gameState.avatar, [category]: item.id };
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="avatar-dialog-title" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
-      <div className="bg-slate-800 border-2 border-yellow-500 rounded-2xl max-w-lg w-full p-6">
-        <div className="flex items-center justify-between mb-6">
+      <div className="bg-slate-800 border-2 border-yellow-500 rounded-2xl max-w-2xl w-full p-6 max-h-[95vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
           <h3 id="avatar-dialog-title" className="text-2xl font-black uppercase italic flex items-center gap-2">
             <User className="w-8 h-8 text-yellow-500" aria-hidden="true" /> My Avatar
           </h3>
@@ -632,49 +633,68 @@ function AvatarBuilder({ gameState, onBuy, onEquip, onClose, onSetName }) {
           </button>
         </div>
 
-        <div className="text-center mb-6">
-          <div className={`w-24 h-24 rounded-full ${AVATAR_ITEMS.colors.find(c => c.id === gameState.avatar.color)?.value || 'bg-blue-500'} flex items-center justify-center text-5xl mx-auto relative`} aria-label="Your avatar preview" role="img">
-            {AVATAR_ITEMS.faces.find(f => f.id === gameState.avatar.face)?.emoji || '😊'}
-            {gameState.avatar.hat !== 'none' && (
-              <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-3xl">
-                {AVATAR_ITEMS.hats.find(h => h.id === gameState.avatar.hat)?.emoji}
-              </span>
-            )}
-            {gameState.avatar.accessory !== 'none' && (
-              <span className="absolute -bottom-1 right-0 text-2xl">
-                {AVATAR_ITEMS.accessories.find(a => a.id === gameState.avatar.accessory)?.emoji}
-              </span>
-            )}
+        {/* Avatar preview + info side by side */}
+        <div className="flex flex-col sm:flex-row items-center gap-6 mb-6">
+          {/* Large avatar preview */}
+          <div className="flex-shrink-0 bg-slate-900/50 rounded-2xl p-4 border border-slate-700">
+            <Avatar3D avatar={gameState.avatar} level={currentLevel.level} size="lg" animate={true} />
           </div>
 
-          {editingName ? (
-            <div className="mt-4 flex gap-2 justify-center">
-              <label htmlFor="avatar-name" className="sr-only">Your name</label>
-              <input
-                id="avatar-name"
-                type="text"
-                value={tempName}
-                onChange={(e) => setTempName(e.target.value)}
-                className="px-3 py-1 bg-slate-700 rounded-lg text-white text-center"
-                placeholder="Your name"
-                maxLength={20}
-              />
-              <button onClick={() => { onSetName(tempName); setEditingName(false); }} className="px-3 py-1 bg-yellow-500 text-slate-900 rounded-lg font-bold">
-                Save
+          {/* Player info + level evolution info */}
+          <div className="flex-1 text-center sm:text-left">
+            {editingName ? (
+              <div className="flex gap-2 justify-center sm:justify-start mb-3">
+                <label htmlFor="avatar-name" className="sr-only">Your name</label>
+                <input
+                  id="avatar-name"
+                  type="text"
+                  value={tempName}
+                  onChange={(e) => setTempName(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-700 rounded-lg text-white"
+                  placeholder="Your name"
+                  maxLength={20}
+                />
+                <button onClick={() => { onSetName(tempName); setEditingName(false); }} className="px-3 py-1.5 bg-yellow-500 text-slate-900 rounded-lg font-bold text-sm">
+                  Save
+                </button>
+              </div>
+            ) : (
+              <button onClick={() => setEditingName(true)} className="text-lg font-bold text-white hover:text-yellow-400 transition-colors mb-1 block" aria-label={`Edit name: ${gameState.playerName || 'not set'}`}>
+                {gameState.playerName || 'Click to set name'} <span className="text-sm text-slate-500">edit</span>
               </button>
-            </div>
-          ) : (
-            <button onClick={() => setEditingName(true)} className="mt-4 text-slate-400 hover:text-white text-sm" aria-label={`Edit name: ${gameState.playerName || 'not set'}`}>
-              {gameState.playerName || 'Click to set name'} <span aria-hidden="true">✏️</span>
-            </button>
-          )}
+            )}
 
-          <div className="flex items-center justify-center gap-1 mt-2 text-yellow-400">
-            <Star className="w-4 h-4 fill-yellow-400" />
-            <span className="font-bold">{gameState.coins} coins</span>
+            <div className="flex items-center gap-3 justify-center sm:justify-start mb-4">
+              <div className="flex items-center gap-1 text-yellow-400">
+                <Star className="w-4 h-4 fill-yellow-400" aria-hidden="true" />
+                <span className="font-bold">{gameState.coins} coins</span>
+              </div>
+            </div>
+
+            {/* Evolution info */}
+            <div className="bg-slate-700/50 rounded-lg p-3 border border-slate-600">
+              <p className="text-xs text-slate-400 uppercase tracking-widest font-bold mb-2">Avatar Evolution</p>
+              <div className="space-y-1.5 text-xs">
+                {[
+                  { minLevel: 1, label: 'Basic Form', desc: 'Starting look' },
+                  { minLevel: 3, label: 'Aura Glow', desc: 'Energy surrounds you' },
+                  { minLevel: 5, label: 'Armor Up', desc: 'Shoulder guards + float' },
+                  { minLevel: 7, label: 'Mythic Wings', desc: 'Wings + epic aura' },
+                ].map((tier) => (
+                  <div key={tier.minLevel} className={`flex items-center gap-2 ${currentLevel.level >= tier.minLevel ? 'text-yellow-400' : 'text-slate-500'}`}>
+                    <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center text-[8px] font-bold ${currentLevel.level >= tier.minLevel ? 'border-yellow-400 bg-yellow-400/20' : 'border-slate-600'}`}>
+                      {currentLevel.level >= tier.minLevel ? '✓' : tier.minLevel}
+                    </span>
+                    <span className="font-bold">{tier.label}</span>
+                    <span className="text-slate-500">{tier.desc}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
+        {/* Shop tabs */}
         <div className="flex gap-2 mb-4" role="tablist" aria-label="Avatar customization categories">
           {tabs.map(tab => (
             <button
@@ -682,14 +702,15 @@ function AvatarBuilder({ gameState, onBuy, onEquip, onClose, onSetName }) {
               role="tab"
               aria-selected={activeTab === tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 py-2 rounded-lg font-bold text-sm ${activeTab === tab.id ? 'bg-yellow-500 text-slate-900' : 'bg-slate-700 text-slate-300'}`}
+              className={`flex-1 py-2 rounded-lg font-bold text-sm transition-colors ${activeTab === tab.id ? 'bg-yellow-500 text-slate-900' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
             >
               {tab.label}
             </button>
           ))}
         </div>
 
-        <div className="grid grid-cols-3 gap-3 max-h-48 overflow-y-auto" role="tabpanel" aria-label={`${activeTab} items`}>
+        {/* Item grid with avatar previews */}
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-56 overflow-y-auto" role="tabpanel" aria-label={`${activeTab} items`}>
           {items.map(item => {
             const owned = gameState.ownedItems.includes(item.id);
             const equipped = gameState.avatar[activeTab.slice(0, -1)] === item.id;
@@ -699,15 +720,28 @@ function AvatarBuilder({ gameState, onBuy, onEquip, onClose, onSetName }) {
                 key={item.id}
                 onClick={() => owned ? onEquip(activeTab.slice(0, -1), item.id) : gameState.coins >= item.cost && onBuy(item.id, item.cost)}
                 disabled={!owned && gameState.coins < item.cost}
-                className={`p-3 rounded-lg border-2 ${equipped ? 'border-yellow-500 bg-yellow-500/20' : owned ? 'border-green-500 bg-slate-700' : gameState.coins >= item.cost ? 'border-slate-600 bg-slate-700' : 'border-slate-700 bg-slate-800 opacity-50'}`}
+                className={`p-3 rounded-xl border-2 flex flex-col items-center gap-1.5 transition-colors ${
+                  equipped ? 'border-yellow-500 bg-yellow-500/20' :
+                  owned ? 'border-green-500/60 bg-slate-700' :
+                  gameState.coins >= item.cost ? 'border-slate-600 bg-slate-700 hover:border-slate-500' :
+                  'border-slate-700 bg-slate-800 opacity-50'
+                }`}
                 aria-label={`${item.name}${equipped ? ' (equipped)' : owned ? ' (owned)' : item.cost > 0 ? ` - ${item.cost} coins` : ''}`}
               >
-                <div className={`text-2xl mb-1 ${activeTab === 'colors' ? `w-8 h-8 rounded-full ${item.value} mx-auto` : ''}`} aria-hidden="true">
-                  {activeTab !== 'colors' && (item.emoji || '—')}
+                {/* Preview */}
+                <div className="flex items-center justify-center" aria-hidden="true">
+                  {activeTab === 'colors' ? (
+                    <AvatarColorSwatch colorId={item.id} size={36} />
+                  ) : (
+                    <AvatarPreviewHead avatar={gameState.avatar} overrides={{ [activeTab.slice(0, -1)]: item.id }} size={44} />
+                  )}
                 </div>
-                <p className="text-xs font-bold truncate">{item.name}</p>
-                {!owned && item.cost > 0 && <p className="text-xs text-yellow-400" aria-hidden="true">{item.cost} <span aria-hidden="true">🪙</span></p>}
-                {equipped && <p className="text-xs text-green-400">Equipped</p>}
+                <p className="text-xs font-bold truncate w-full text-center">{item.name}</p>
+                {!owned && item.cost > 0 && (
+                  <p className="text-xs text-yellow-400 font-bold">{item.cost} coins</p>
+                )}
+                {equipped && <p className="text-[10px] text-green-400 font-bold uppercase">Equipped</p>}
+                {owned && !equipped && <p className="text-[10px] text-slate-500 font-bold uppercase">Owned</p>}
               </button>
             );
           })}
@@ -749,15 +783,24 @@ function MysteryBoxModal({ reward, onClose }) {
 }
 
 // ============== LEVEL UP / ACHIEVEMENT MODALS ==============
-function LevelUpModal({ level, onClose }) {
+function LevelUpModal({ level, avatar, onClose }) {
+  const evoLabels = { 1: null, 2: 'Aura Unlocked!', 3: 'Armor & Float Unlocked!', 4: 'Mythic Wings Unlocked!' };
+  const evo = level.level >= 7 ? 4 : level.level >= 5 ? 3 : level.level >= 3 ? 2 : 1;
+  const evoLabel = evoLabels[evo];
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="levelup-dialog-title" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
       <div className="bg-gradient-to-b from-yellow-600 to-yellow-700 border-4 border-yellow-400 rounded-2xl max-w-sm w-full p-8 text-center" role="alert">
-        <div className="text-8xl mb-4" aria-hidden="true">🎉</div>
+        <div className="flex justify-center mb-4">
+          <Avatar3D avatar={avatar} level={level.level} size="md" animate={true} />
+        </div>
         <h3 id="levelup-dialog-title" className="text-3xl font-black uppercase italic text-white mb-2">Level Up!</h3>
         <p className={`text-4xl font-black ${level.color} mb-2`}>Level {level.level}</p>
-        <p className="text-2xl font-bold text-white mb-6">{level.title}</p>
-        <button onClick={onClose} className="w-full py-3 bg-white text-yellow-700 font-black uppercase rounded-xl">Let's Go!</button>
+        <p className="text-2xl font-bold text-white mb-2">{level.title}</p>
+        {evoLabel && (
+          <p className="text-sm font-bold text-yellow-200 bg-yellow-800/50 rounded-lg py-1.5 px-3 mb-4 inline-block">{evoLabel}</p>
+        )}
+        <button onClick={onClose} className="w-full py-3 bg-white text-yellow-700 font-black uppercase rounded-xl mt-2">Let's Go!</button>
       </div>
     </div>
   );
@@ -1135,10 +1178,10 @@ function GameContent() {
       )}
 
       {showTrophyCase && <TrophyCase achievements={gameState.unlockedAchievements} onClose={() => setShowTrophyCase(false)} />}
-      {showAvatarBuilder && <AvatarBuilder gameState={gameState} onBuy={buyAvatarItem} onEquip={equipAvatarItem} onClose={() => setShowAvatarBuilder(false)} onSetName={setPlayerName} />}
+      {showAvatarBuilder && <AvatarBuilder gameState={gameState} getCurrentLevel={getCurrentLevel} onBuy={buyAvatarItem} onEquip={equipAvatarItem} onClose={() => setShowAvatarBuilder(false)} onSetName={setPlayerName} />}
       {showMySubmissions && <MySubmissions submissions={submissions} onClose={() => setShowMySubmissions(false)} />}
       {showMysteryReward && <MysteryBoxModal reward={showMysteryReward} onClose={() => setShowMysteryReward(null)} />}
-      {showLevelUp && newLevel && <LevelUpModal level={newLevel} onClose={() => setShowLevelUp(false)} />}
+      {showLevelUp && newLevel && <LevelUpModal level={newLevel} avatar={gameState.avatar} onClose={() => setShowLevelUp(false)} />}
       {showAchievement && <AchievementModal achievement={showAchievement} onClose={() => setShowAchievement(null)} />}
     </div>
   );
