@@ -797,6 +797,12 @@ function LevelUpModal({ level, avatar, onClose }) {
         <h3 id="levelup-dialog-title" className="text-3xl font-black uppercase italic text-white mb-2">Level Up!</h3>
         <p className={`text-4xl font-black ${level.color} mb-2`}>Level {level.level}</p>
         <p className="text-2xl font-bold text-white mb-2">{level.title}</p>
+        {level.coinsEarned > 0 && (
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <Star className="w-5 h-5 fill-yellow-300 text-yellow-300" aria-hidden="true" />
+            <span className="text-lg font-black text-yellow-200">+{level.coinsEarned} Coins</span>
+          </div>
+        )}
         {evoLabel && (
           <p className="text-sm font-bold text-yellow-200 bg-yellow-800/50 rounded-lg py-1.5 px-3 mb-4 inline-block">{evoLabel}</p>
         )}

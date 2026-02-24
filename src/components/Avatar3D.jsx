@@ -327,6 +327,37 @@ export function AvatarPreviewHead({ avatar, overrides = {}, size = 48 }) {
       <Mouth expression={merged.face} cx={50} cy={66} s={0.85} />
       {merged.accessory === 'glasses' && <Glasses cx={50} cy={50} s={0.85} />}
       {merged.hat !== 'none' && <Hat type={merged.hat} cx={50} baseY={20} s={0.7} />}
+      {/* Accessory effect indicators on preview head */}
+      {merged.accessory === 'star' && (
+        <polygon points="82,72 84,78 90,78 85,82 87,88 82,84 77,88 79,82 74,78 80,78" fill="#ECC94B" stroke="#D69E2E" strokeWidth="0.5" />
+      )}
+      {merged.accessory === 'lightning' && (
+        <polygon points="82,70 87,70 84,78 89,78 78,92 81,82 76,82" fill="#ECC94B" stroke="#D69E2E" strokeWidth="0.5" />
+      )}
+      {merged.accessory === 'fire' && (
+        <g>
+          <ellipse cx="20" cy="68" rx="5" ry="9" fill="#ED8936" opacity="0.7" />
+          <ellipse cx="20" cy="65" rx="3" ry="6" fill="#ECC94B" opacity="0.8" />
+          <ellipse cx="80" cy="68" rx="5" ry="9" fill="#ED8936" opacity="0.7" />
+          <ellipse cx="80" cy="65" rx="3" ry="6" fill="#ECC94B" opacity="0.8" />
+        </g>
+      )}
+      {merged.accessory === 'sparkle' && (
+        <g>
+          <g>
+            <line x1="16" y1="50" x2="24" y2="50" stroke="#ECC94B" strokeWidth="1.5" />
+            <line x1="20" y1="46" x2="20" y2="54" stroke="#ECC94B" strokeWidth="1.5" />
+          </g>
+          <g>
+            <line x1="76" y1="42" x2="84" y2="42" stroke="#ECC94B" strokeWidth="1.5" />
+            <line x1="80" y1="38" x2="80" y2="46" stroke="#ECC94B" strokeWidth="1.5" />
+          </g>
+          <g>
+            <line x1="22" y1="78" x2="28" y2="78" stroke="#ECC94B" strokeWidth="1" />
+            <line x1="25" y1="75" x2="25" y2="81" stroke="#ECC94B" strokeWidth="1" />
+          </g>
+        </g>
+      )}
     </svg>
   );
 }
@@ -382,6 +413,37 @@ export default function Avatar3D({ avatar = {}, level = 1, size = 'md', animate 
           {accessory === 'glasses' && <Glasses cx={50} cy={48} s={0.78} />}
           {/* Hat */}
           {hat !== 'none' && <Hat type={hat} cx={50} baseY={20} s={0.65} />}
+          {/* Accessory effect indicators */}
+          {accessory === 'star' && (
+            <polygon points="82,72 84,78 90,78 85,82 87,88 82,84 77,88 79,82 74,78 80,78" fill="#ECC94B" stroke="#D69E2E" strokeWidth="0.5" />
+          )}
+          {accessory === 'lightning' && (
+            <polygon points="82,70 87,70 84,78 89,78 78,92 81,82 76,82" fill="#ECC94B" stroke="#D69E2E" strokeWidth="0.5" />
+          )}
+          {accessory === 'fire' && (
+            <g>
+              <ellipse cx="20" cy="68" rx="5" ry="9" fill="#ED8936" opacity="0.7" />
+              <ellipse cx="20" cy="65" rx="3" ry="6" fill="#ECC94B" opacity="0.8" />
+              <ellipse cx="80" cy="68" rx="5" ry="9" fill="#ED8936" opacity="0.7" />
+              <ellipse cx="80" cy="65" rx="3" ry="6" fill="#ECC94B" opacity="0.8" />
+            </g>
+          )}
+          {accessory === 'sparkle' && (
+            <g>
+              <g>
+                <line x1="16" y1="50" x2="24" y2="50" stroke="#ECC94B" strokeWidth="1.5" />
+                <line x1="20" y1="46" x2="20" y2="54" stroke="#ECC94B" strokeWidth="1.5" />
+              </g>
+              <g>
+                <line x1="76" y1="42" x2="84" y2="42" stroke="#ECC94B" strokeWidth="1.5" />
+                <line x1="80" y1="38" x2="80" y2="46" stroke="#ECC94B" strokeWidth="1.5" />
+              </g>
+              <g>
+                <line x1="22" y1="78" x2="28" y2="78" stroke="#ECC94B" strokeWidth="1" />
+                <line x1="25" y1="75" x2="25" y2="81" stroke="#ECC94B" strokeWidth="1" />
+              </g>
+            </g>
+          )}
         </svg>
       </div>
     );

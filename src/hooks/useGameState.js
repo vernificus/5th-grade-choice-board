@@ -258,8 +258,17 @@ export function useGameState() {
       const oldLevel = LEVELS.reduce((acc, l) => oldState.xp >= l.xpRequired ? l : acc, LEVELS[0]);
       const newLevelData = LEVELS.reduce((acc, l) => newState.xp >= l.xpRequired ? l : acc, LEVELS[0]);
       if (newLevelData.level > oldLevel.level) {
+        // Grant coin rewards for each level gained
+        let totalCoins = 0;
+        for (let lvl = oldLevel.level + 1; lvl <= newLevelData.level; lvl++) {
+          const levelData = LEVELS.find(l => l.level === lvl);
+          if (levelData?.coinReward) totalCoins += levelData.coinReward;
+        }
+        if (totalCoins > 0) {
+          newState.coins = (newState.coins || 0) + totalCoins;
+        }
         setTimeout(() => {
-          setNewLevel(newLevelData);
+          setNewLevel({ ...newLevelData, coinsEarned: totalCoins });
           setShowLevelUp(true);
         }, 500);
       }
