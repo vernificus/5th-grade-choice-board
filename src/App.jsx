@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Gamepad2, Mic, BarChart3, Palette, CheckCircle2, Trophy, Rocket, Info, X, PlayCircle,
   Star, Gift, Swords, Users, User, Sparkles, Zap, Shield, Crown, Target,
-  Upload, Link, Link2, Clock, CheckCheck, XCircle, ClipboardList, Lock, Eye, FileText, LogOut
+  Upload, Link, Link2, Clock, CheckCheck, XCircle, ClipboardList, Lock, Eye, FileText, LogOut,
+  MessageSquare
 } from 'lucide-react';
 import { useGameState } from './hooks/useGameState';
 import {
@@ -334,6 +335,7 @@ function BossChallenge({ completedBosses, onSubmit, hasPendingSubmission }) {
 function SubmissionForm({ activityTitle, onSubmit, onCancel }) {
   const [submissionType, setSubmissionType] = useState('link');
   const [linkValue, setLinkValue] = useState('');
+  const [textValue, setTextValue] = useState('');
   const [fileName, setFileName] = useState('');
   const [fileData, setFileData] = useState(null);
   const [fileType, setFileType] = useState('');
@@ -376,15 +378,30 @@ function SubmissionForm({ activityTitle, onSubmit, onCancel }) {
       alert('Please select a file');
       return;
     }
+    if (submissionType === 'text' && !textValue.trim()) {
+      alert('Please type your response');
+      return;
+    }
+
+    let content;
+    if (submissionType === 'link') content = linkValue.trim();
+    else if (submissionType === 'file') content = fileData;
+    else content = textValue.trim();
 
     onSubmit({
       type: submissionType,
-      content: submissionType === 'link' ? linkValue.trim() : fileData,
+      content,
       fileName: submissionType === 'file' ? fileName : null,
       fileType: submissionType === 'file' ? fileType : null,
       note: note.trim()
     });
   };
+
+  const typeButtons = [
+    { type: 'link', icon: Link, label: 'Paste Link' },
+    { type: 'file', icon: Upload, label: 'Upload File' },
+    { type: 'text', icon: MessageSquare, label: 'Type Response' },
+  ];
 
   return (
     <div>
@@ -392,23 +409,19 @@ function SubmissionForm({ activityTitle, onSubmit, onCancel }) {
       <p className="text-slate-400 text-sm text-center mb-6">for: {activityTitle}</p>
 
       <div className="flex gap-2 mb-6" role="group" aria-label="Submission type">
-        <button
-          onClick={() => setSubmissionType('link')}
-          className={`flex-1 py-3 rounded-lg font-bold flex items-center justify-center gap-2 ${submissionType === 'link' ? 'bg-yellow-500 text-slate-900' : 'bg-slate-700 text-slate-300'}`}
-          aria-pressed={submissionType === 'link'}
-        >
-          <Link className="w-5 h-5" aria-hidden="true" /> Paste Link
-        </button>
-        <button
-          onClick={() => setSubmissionType('file')}
-          className={`flex-1 py-3 rounded-lg font-bold flex items-center justify-center gap-2 ${submissionType === 'file' ? 'bg-yellow-500 text-slate-900' : 'bg-slate-700 text-slate-300'}`}
-          aria-pressed={submissionType === 'file'}
-        >
-          <Upload className="w-5 h-5" aria-hidden="true" /> Upload File
-        </button>
+        {typeButtons.map(({ type, icon: Icon, label }) => (
+          <button
+            key={type}
+            onClick={() => setSubmissionType(type)}
+            className={`flex-1 py-3 rounded-lg font-bold flex items-center justify-center gap-2 text-sm ${submissionType === type ? 'bg-yellow-500 text-slate-900' : 'bg-slate-700 text-slate-300'}`}
+            aria-pressed={submissionType === type}
+          >
+            <Icon className="w-5 h-5" aria-hidden="true" /> {label}
+          </button>
+        ))}
       </div>
 
-      {submissionType === 'link' ? (
+      {submissionType === 'link' && (
         <div className="mb-4">
           <label htmlFor="submission-link" className="block text-sm font-bold text-slate-300 mb-2">Link to your work</label>
           <input
@@ -422,7 +435,9 @@ function SubmissionForm({ activityTitle, onSubmit, onCancel }) {
           />
           <p id="link-hint" className="text-xs text-slate-500 mt-2">Paste a link to Google Docs, YouTube, Vocaroo, or any other website</p>
         </div>
-      ) : (
+      )}
+
+      {submissionType === 'file' && (
         <div className="mb-4">
           <label htmlFor="submission-file" className="block text-sm font-bold text-slate-300 mb-2">Upload your file</label>
           <input
@@ -453,17 +468,36 @@ function SubmissionForm({ activityTitle, onSubmit, onCancel }) {
         </div>
       )}
 
-      <div className="mb-6">
-        <label htmlFor="submission-note" className="block text-sm font-bold text-slate-300 mb-2">Note to teacher (optional)</label>
-        <textarea
-          id="submission-note"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="Anything you want your teacher to know..."
-          rows={2}
-          className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-yellow-500 focus:outline-none resize-none"
-        />
-      </div>
+      {submissionType === 'text' && (
+        <div className="mb-4">
+          <label htmlFor="submission-text" className="block text-sm font-bold text-slate-300 mb-2">Your response</label>
+          <textarea
+            id="submission-text"
+            value={textValue}
+            onChange={(e) => setTextValue(e.target.value)}
+            placeholder="Type your answer or describe what you did..."
+            rows={5}
+            className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-yellow-500 focus:outline-none resize-y min-h-[120px]"
+            aria-describedby="text-hint"
+          />
+          <p id="text-hint" className="text-xs text-slate-500 mt-2">Write your answer, explain your work, or describe what you created</p>
+        </div>
+      )}
+
+      {/* Note field - shown for link and file types only (text type IS the response) */}
+      {submissionType !== 'text' && (
+        <div className="mb-6">
+          <label htmlFor="submission-note" className="block text-sm font-bold text-slate-300 mb-2">Note to teacher (optional)</label>
+          <textarea
+            id="submission-note"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Anything you want your teacher to know..."
+            rows={2}
+            className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-yellow-500 focus:outline-none resize-none"
+          />
+        </div>
+      )}
 
       <div className="flex gap-3">
         <button
