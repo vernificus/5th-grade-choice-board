@@ -64,12 +64,24 @@ export const realBackend = {
   // ================= CLASS MANAGEMENT =================
   async getClasses(teacherId) {
     try {
-      const q = query(collection(db, "classes"), where("teacherId", "==", teacherId));
-      const querySnapshot = await getDocs(q);
+      // Get classes owned by this teacher
+      const ownedQuery = query(collection(db, "classes"), where("teacherId", "==", teacherId));
+      const ownedSnapshot = await getDocs(ownedQuery);
       const classes = [];
-      querySnapshot.forEach((doc) => {
-        classes.push({ id: doc.id, ...doc.data() });
+      ownedSnapshot.forEach((d) => {
+        classes.push({ id: d.id, ...d.data() });
       });
+
+      // Get classes where this teacher is a co-teacher
+      const coQuery = query(collection(db, "classes"), where("coTeacherIds", "array-contains", teacherId));
+      const coSnapshot = await getDocs(coQuery);
+      coSnapshot.forEach((d) => {
+        // Avoid duplicates
+        if (!classes.find(c => c.id === d.id)) {
+          classes.push({ id: d.id, ...d.data(), isCoTeacher: true });
+        }
+      });
+
       return classes;
     } catch (error) {
       console.error("Error getting classes: ", error);
@@ -181,6 +193,30 @@ export const realBackend = {
       return { id: docRef.id, ...newClass };
     } catch (error) {
       throw new Error(error.message);
+    }
+  },
+
+  async getClass(classId) {
+    try {
+      const docSnap = await getDoc(doc(db, "classes", classId));
+      if (docSnap.exists()) {
+        return { id: docSnap.id, ...docSnap.data() };
+      }
+      return null;
+    } catch (error) {
+      console.error("Error getting class:", error);
+      return null;
+    }
+  },
+
+  async updateClass(classId, updates) {
+    try {
+      const classRef = doc(db, "classes", classId);
+      await updateDoc(classRef, updates);
+      return { id: classId, ...updates };
+    } catch (error) {
+      console.error("Error updating class:", error);
+      throw error;
     }
   },
 
@@ -411,5 +447,124 @@ export const realBackend = {
       console.error("Error reviewing submission:", error);
       throw error;
     }
+  },
+
+  // ================= ACTIVITY RESET =================
+  async resetStudentActivities(studentId) {
+    try {
+      const docRef = doc(db, "students", studentId);
+      await updateDoc(docRef, {
+        completedActivities: [],
+        lastActivityReset: new Date().toISOString()
+      });
+      return true;
+    } catch (error) {
+      console.error("Error resetting student activities:", error);
+      throw error;
+    }
+  },
+
+  async resetClassActivities(classId) {
+    try {
+      const q = query(collection(db, "students"), where("classId", "==", classId));
+      const querySnapshot = await getDocs(q);
+      const updates = [];
+      querySnapshot.forEach((studentDoc) => {
+        updates.push(updateDoc(doc(db, "students", studentDoc.id), {
+          completedActivities: [],
+          lastActivityReset: new Date().toISOString()
+        }));
+      });
+      await Promise.all(updates);
+      return querySnapshot.size;
+    } catch (error) {
+      console.error("Error resetting class activities:", error);
+      throw error;
+    }
+  },
+
+  // ================= CO-TEACHER MANAGEMENT =================
+  async addCoTeacher(classId, email) {
+    try {
+      // Look up teacher by email
+      const q = query(collection(db, "teachers"), where("email", "==", email));
+      const snapshot = await getDocs(q);
+
+      if (snapshot.empty) {
+        throw new Error("No teacher found with that email. They must create an account first.");
+      }
+
+      const coTeacherDoc = snapshot.docs[0];
+      const coTeacherId = coTeacherDoc.id;
+
+      // Get the class to check ownership and existing co-teachers
+      const classRef = doc(db, "classes", classId);
+      const classSnap = await getDoc(classRef);
+      if (!classSnap.exists()) throw new Error("Class not found");
+
+      const classData = classSnap.data();
+
+      if (classData.teacherId === coTeacherId) {
+        throw new Error("That teacher already owns this class.");
+      }
+
+      const existing = classData.coTeacherIds || [];
+      if (existing.includes(coTeacherId)) {
+        throw new Error("That teacher is already a co-teacher for this class.");
+      }
+
+      await updateDoc(classRef, {
+        coTeacherIds: [...existing, coTeacherId]
+      });
+
+      return { id: coTeacherDoc.id, name: coTeacherDoc.data().name, email: coTeacherDoc.data().email };
+    } catch (error) {
+      throw new Error(error.message);
+    }
+  },
+
+  async removeCoTeacher(classId, coTeacherId) {
+    try {
+      const classRef = doc(db, "classes", classId);
+      const classSnap = await getDoc(classRef);
+      if (!classSnap.exists()) throw new Error("Class not found");
+
+      const classData = classSnap.data();
+      const updated = (classData.coTeacherIds || []).filter(id => id !== coTeacherId);
+
+      await updateDoc(classRef, { coTeacherIds: updated });
+      return true;
+    } catch (error) {
+      throw new Error(error.message);
+    }
+  },
+
+  async getCoTeachers(classId) {
+    try {
+      const classRef = doc(db, "classes", classId);
+      const classSnap = await getDoc(classRef);
+      if (!classSnap.exists()) return [];
+
+      const coTeacherIds = classSnap.data().coTeacherIds || [];
+      const coTeachers = [];
+
+      for (const id of coTeacherIds) {
+        const teacherSnap = await getDoc(doc(db, "teachers", id));
+        if (teacherSnap.exists()) {
+          coTeachers.push({ id: teacherSnap.id, ...teacherSnap.data() });
+        }
+      }
+
+      return coTeachers;
+    } catch (error) {
+      console.error("Error getting co-teachers:", error);
+      return [];
+    }
+  },
+
+  // ================= STUDENT SELF-SIGNUP =================
+  async studentSelfSignup(classId, name, password) {
+    // Same as createStudent but intended for the student-facing signup flow
+    return this.createStudent(classId, name, password);
   }
 };

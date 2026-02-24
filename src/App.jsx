@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Gamepad2, Mic, BarChart3, Palette, CheckCircle2, Trophy, Rocket, Info, X, PlayCircle,
   Star, Gift, Swords, Users, User, Sparkles, Zap, Shield, Crown, Target,
@@ -25,8 +25,8 @@ function PlayerStats({ gameState, getCurrentLevel, getNextLevelXp, onOpenProfile
   return (
     <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <button onClick={onOpenProfile} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-          <div className={`w-12 h-12 rounded-full ${AVATAR_ITEMS.colors.find(c => c.id === gameState.avatar.color)?.value || 'bg-blue-500'} flex items-center justify-center text-2xl relative`}>
+        <button onClick={onOpenProfile} className="flex items-center gap-3 hover:opacity-80 transition-opacity" aria-label={`Open profile for ${gameState.playerName || 'Player'}, Level ${currentLevel.level} ${currentLevel.title}`}>
+          <div className={`w-12 h-12 rounded-full ${AVATAR_ITEMS.colors.find(c => c.id === gameState.avatar.color)?.value || 'bg-blue-500'} flex items-center justify-center text-2xl relative`} aria-hidden="true">
             {AVATAR_ITEMS.faces.find(f => f.id === gameState.avatar.face)?.emoji || '😊'}
             {gameState.avatar.hat !== 'none' && (
               <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-lg">
@@ -42,10 +42,18 @@ function PlayerStats({ gameState, getCurrentLevel, getNextLevelXp, onOpenProfile
 
         <div className="flex-1 min-w-[200px] max-w-md">
           <div className="flex justify-between text-xs mb-1">
-            <span className="text-slate-400">XP</span>
+            <span className="text-slate-400" id="xp-label">XP</span>
             <span className="text-yellow-500 font-bold">{gameState.xp} / {nextLevelXp}</span>
           </div>
-          <div className="h-3 bg-slate-700 rounded-full overflow-hidden">
+          <div
+            className="h-3 bg-slate-700 rounded-full overflow-hidden"
+            role="progressbar"
+            aria-labelledby="xp-label"
+            aria-valuenow={gameState.xp}
+            aria-valuemin={currentLevel.xpRequired}
+            aria-valuemax={nextLevelXp}
+            aria-valuetext={`${gameState.xp} of ${nextLevelXp} XP, ${Math.round(Math.min(progress, 100))}% to next level`}
+          >
             <div
               className="h-full bg-gradient-to-r from-yellow-500 to-yellow-400 transition-all duration-500"
               style={{ width: `${Math.min(progress, 100)}%` }}
@@ -54,20 +62,21 @@ function PlayerStats({ gameState, getCurrentLevel, getNextLevelXp, onOpenProfile
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1 text-yellow-400">
-            <Star className="w-5 h-5 fill-yellow-400" />
+          <div className="flex items-center gap-1 text-yellow-400" role="status" aria-label={`${gameState.coins} coins`}>
+            <Star className="w-5 h-5 fill-yellow-400" aria-hidden="true" />
             <span className="font-bold">{gameState.coins}</span>
           </div>
-          <div className="flex items-center gap-1 text-orange-400">
-            <Zap className="w-5 h-5" />
+          <div className="flex items-center gap-1 text-orange-400" role="status" aria-label={`${gameState.currentStreak} day streak`}>
+            <Zap className="w-5 h-5" aria-hidden="true" />
             <span className="font-bold">{gameState.currentStreak}</span>
           </div>
           {pendingSubmissions > 0 && (
             <button
               onClick={onOpenSubmissions}
               className="flex items-center gap-1 bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded-lg"
+              aria-label={`View ${pendingSubmissions} pending submission${pendingSubmissions !== 1 ? 's' : ''}`}
             >
-              <Clock className="w-4 h-4" />
+              <Clock className="w-4 h-4" aria-hidden="true" />
               <span className="font-bold text-sm">{pendingSubmissions}</span>
             </button>
           )}
@@ -75,31 +84,32 @@ function PlayerStats({ gameState, getCurrentLevel, getNextLevelXp, onOpenProfile
             <button
               onClick={onOpenMysteryBox}
               className="flex items-center gap-1 bg-purple-600 hover:bg-purple-500 px-3 py-1 rounded-lg animate-pulse"
+              aria-label={`Open ${gameState.pendingMysteryBoxes} mystery box${gameState.pendingMysteryBoxes !== 1 ? 'es' : ''}`}
             >
-              <Gift className="w-5 h-5" />
+              <Gift className="w-5 h-5" aria-hidden="true" />
               <span className="font-bold">{gameState.pendingMysteryBoxes}</span>
             </button>
           )}
           <button
              onClick={logout}
              className="ml-2 text-slate-500 hover:text-white"
-             title="Logout"
+             aria-label="Logout"
            >
-             <LogOut className="w-5 h-5" />
+             <LogOut className="w-5 h-5" aria-hidden="true" />
            </button>
         </div>
       </div>
 
       {(gameState.doubleXpActive || gameState.streakShieldActive) && (
-        <div className="flex gap-2 mt-3 pt-3 border-t border-slate-700">
+        <div className="flex gap-2 mt-3 pt-3 border-t border-slate-700" role="status" aria-label="Active power-ups">
           {gameState.doubleXpActive && (
             <span className="text-xs bg-pink-600/30 text-pink-300 px-2 py-1 rounded-full flex items-center gap-1">
-              <Sparkles className="w-3 h-3" /> 2x XP Active
+              <Sparkles className="w-3 h-3" aria-hidden="true" /> 2x XP Active
             </span>
           )}
           {gameState.streakShieldActive && (
             <span className="text-xs bg-orange-600/30 text-orange-300 px-2 py-1 rounded-full flex items-center gap-1">
-              <Shield className="w-3 h-3" /> Streak Protected
+              <Shield className="w-3 h-3" aria-hidden="true" /> Streak Protected
             </span>
           )}
         </div>
@@ -111,10 +121,10 @@ function PlayerStats({ gameState, getCurrentLevel, getNextLevelXp, onOpenProfile
 // ============== DAILY QUEST BANNER ==============
 function DailyQuestBanner({ quest, completed }) {
   return (
-    <div className={`mb-6 p-4 rounded-xl border-2 ${completed ? 'bg-green-900/30 border-green-600' : 'bg-gradient-to-r from-purple-900/50 to-blue-900/50 border-purple-500'}`}>
+    <section className={`mb-6 p-4 rounded-xl border-2 ${completed ? 'bg-green-900/30 border-green-600' : 'bg-gradient-to-r from-purple-900/50 to-blue-900/50 border-purple-500'}`} aria-label="Daily Quest">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-lg ${completed ? 'bg-green-600' : 'bg-purple-600'}`}>
+          <div className={`p-2 rounded-lg ${completed ? 'bg-green-600' : 'bg-purple-600'}`} aria-hidden="true">
             <Target className="w-5 h-5" />
           </div>
           <div>
@@ -125,15 +135,15 @@ function DailyQuestBanner({ quest, completed }) {
         </div>
         <div className="text-right">
           {completed ? (
-            <span className="text-green-400 font-bold flex items-center gap-1">
-              <CheckCircle2 className="w-5 h-5" /> Complete!
+            <span className="text-green-400 font-bold flex items-center gap-1" role="status">
+              <CheckCircle2 className="w-5 h-5" aria-hidden="true" /> Complete!
             </span>
           ) : (
             <span className="text-yellow-400 font-bold">{quest.multiplier}x XP</span>
           )}
         </div>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -155,17 +165,18 @@ function GuildPanel({ currentGuild, onJoinGuild, guildXp }) {
         </button>
 
         {showGuilds && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
-            <div className="bg-slate-800 border-2 border-yellow-500 rounded-2xl max-w-lg w-full p-6">
-              <h3 className="text-2xl font-black uppercase italic mb-6 text-center">Choose Your Guild</h3>
-              <div className="grid grid-cols-2 gap-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="guild-dialog-title" onClick={() => setShowGuilds(false)} onKeyDown={(e) => e.key === 'Escape' && setShowGuilds(false)}>
+            <div className="bg-slate-800 border-2 border-yellow-500 rounded-2xl max-w-lg w-full p-6" onClick={(e) => e.stopPropagation()}>
+              <h3 id="guild-dialog-title" className="text-2xl font-black uppercase italic mb-6 text-center">Choose Your Guild</h3>
+              <div className="grid grid-cols-2 gap-4" role="group" aria-label="Available guilds">
                 {GUILDS.map(guild => (
                   <button
                     key={guild.id}
                     onClick={() => { onJoinGuild(guild.id); setShowGuilds(false); }}
                     className={`p-4 rounded-xl ${guild.color} hover:opacity-90 transition-opacity text-left`}
+                    aria-label={`Join ${guild.name}: ${guild.motto}`}
                   >
-                    <span className="text-3xl">{guild.emoji}</span>
+                    <span className="text-3xl" aria-hidden="true">{guild.emoji}</span>
                     <p className="font-black mt-2">{guild.name}</p>
                     <p className="text-xs opacity-80">{guild.motto}</p>
                   </button>
@@ -184,10 +195,10 @@ function GuildPanel({ currentGuild, onJoinGuild, guildXp }) {
   const guild = GUILDS.find(g => g.id === currentGuild);
 
   return (
-    <div className={`mb-6 p-4 rounded-xl ${guild.color} bg-opacity-30 border border-opacity-50`}>
+    <section className={`mb-6 p-4 rounded-xl ${guild.color} bg-opacity-30 border border-opacity-50`} aria-label={`Your guild: ${guild.name}`}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className="text-3xl">{guild.emoji}</span>
+          <span className="text-3xl" aria-hidden="true">{guild.emoji}</span>
           <div>
             <p className="font-black text-white">{guild.name}</p>
             <p className="text-xs opacity-80">{guild.motto}</p>
@@ -198,7 +209,7 @@ function GuildPanel({ currentGuild, onJoinGuild, guildXp }) {
           <p className="font-bold text-yellow-400">{guildXp} XP</p>
         </div>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -223,10 +234,11 @@ function BossChallenge({ completedBosses, onSubmit, hasPendingSubmission }) {
       <button
         onClick={() => setShowBoss(true)}
         className={`mb-6 w-full p-4 rounded-xl border-2 ${isCompleted ? 'bg-slate-800 border-slate-700' : hasPendingSubmission ? 'bg-blue-900/30 border-blue-500' : 'bg-gradient-to-r from-red-900/50 to-orange-900/50 border-red-500 animate-pulse'}`}
+        aria-label={`Weekly Boss: ${currentBoss.name}${isCompleted ? ' - Defeated' : hasPendingSubmission ? ' - Pending approval' : ` - ${currentBoss.reward} XP reward`}`}
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-lg ${isCompleted ? 'bg-slate-700' : hasPendingSubmission ? 'bg-blue-600' : 'bg-red-600'}`}>
+            <div className={`p-2 rounded-lg ${isCompleted ? 'bg-slate-700' : hasPendingSubmission ? 'bg-blue-600' : 'bg-red-600'}`} aria-hidden="true">
               <Swords className="w-6 h-6" />
             </div>
             <div className="text-left">
@@ -236,11 +248,11 @@ function BossChallenge({ completedBosses, onSubmit, hasPendingSubmission }) {
           </div>
           {isCompleted ? (
             <span className="text-green-400 font-bold flex items-center gap-1">
-              <Crown className="w-5 h-5" /> Defeated!
+              <Crown className="w-5 h-5" aria-hidden="true" /> Defeated!
             </span>
           ) : hasPendingSubmission ? (
             <span className="text-blue-400 font-bold flex items-center gap-1">
-              <Clock className="w-5 h-5" /> Pending
+              <Clock className="w-5 h-5" aria-hidden="true" /> Pending
             </span>
           ) : (
             <span className="text-yellow-400 font-bold">+{currentBoss.reward} XP</span>
@@ -249,17 +261,17 @@ function BossChallenge({ completedBosses, onSubmit, hasPendingSubmission }) {
       </button>
 
       {showBoss && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="boss-dialog-title" onKeyDown={(e) => e.key === 'Escape' && setShowBoss(false)}>
           <div className="bg-slate-800 border-2 border-red-500 rounded-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto relative">
-            <button onClick={() => setShowBoss(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white">
-              <X className="w-6 h-6" />
+            <button onClick={() => setShowBoss(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white" aria-label="Close boss challenge">
+              <X className="w-6 h-6" aria-hidden="true" />
             </button>
 
             {!showSubmitForm ? (
               <>
                 <div className="text-center mb-6">
-                  <div className="text-6xl mb-4">👹</div>
-                  <h3 className="text-2xl font-black uppercase italic text-red-400">{currentBoss.name}</h3>
+                  <div className="text-6xl mb-4" aria-hidden="true">👹</div>
+                  <h3 id="boss-dialog-title" className="text-2xl font-black uppercase italic text-red-400">{currentBoss.name}</h3>
                   <p className="text-slate-400 mt-2">{currentBoss.desc}</p>
                 </div>
 
@@ -292,14 +304,14 @@ function BossChallenge({ completedBosses, onSubmit, hasPendingSubmission }) {
                   </button>
                 )}
                 {hasPendingSubmission && (
-                  <div className="text-center text-blue-400 font-bold py-3">
-                    <Clock className="w-6 h-6 inline mr-2" />
+                  <div className="text-center text-blue-400 font-bold py-3" role="status">
+                    <Clock className="w-6 h-6 inline mr-2" aria-hidden="true" />
                     Waiting for teacher approval...
                   </div>
                 )}
                 {isCompleted && (
-                  <div className="text-center text-green-400 font-bold py-3">
-                    <CheckCircle2 className="w-6 h-6 inline mr-2" />
+                  <div className="text-center text-green-400 font-bold py-3" role="status">
+                    <CheckCircle2 className="w-6 h-6 inline mr-2" aria-hidden="true" />
                     Boss Defeated! Come back next week.
                   </div>
                 )}
@@ -379,64 +391,72 @@ function SubmissionForm({ activityTitle, onSubmit, onCancel }) {
       <h3 className="text-xl font-black uppercase italic mb-4 text-center">Submit Your Work</h3>
       <p className="text-slate-400 text-sm text-center mb-6">for: {activityTitle}</p>
 
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2 mb-6" role="group" aria-label="Submission type">
         <button
           onClick={() => setSubmissionType('link')}
           className={`flex-1 py-3 rounded-lg font-bold flex items-center justify-center gap-2 ${submissionType === 'link' ? 'bg-yellow-500 text-slate-900' : 'bg-slate-700 text-slate-300'}`}
+          aria-pressed={submissionType === 'link'}
         >
-          <Link className="w-5 h-5" /> Paste Link
+          <Link className="w-5 h-5" aria-hidden="true" /> Paste Link
         </button>
         <button
           onClick={() => setSubmissionType('file')}
           className={`flex-1 py-3 rounded-lg font-bold flex items-center justify-center gap-2 ${submissionType === 'file' ? 'bg-yellow-500 text-slate-900' : 'bg-slate-700 text-slate-300'}`}
+          aria-pressed={submissionType === 'file'}
         >
-          <Upload className="w-5 h-5" /> Upload File
+          <Upload className="w-5 h-5" aria-hidden="true" /> Upload File
         </button>
       </div>
 
       {submissionType === 'link' ? (
         <div className="mb-4">
-          <label className="block text-sm font-bold text-slate-300 mb-2">Link to your work</label>
+          <label htmlFor="submission-link" className="block text-sm font-bold text-slate-300 mb-2">Link to your work</label>
           <input
+            id="submission-link"
             type="url"
             value={linkValue}
             onChange={(e) => setLinkValue(e.target.value)}
             placeholder="https://docs.google.com/..."
             className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-yellow-500 focus:outline-none"
+            aria-describedby="link-hint"
           />
-          <p className="text-xs text-slate-500 mt-2">Paste a link to Google Docs, YouTube, Vocaroo, or any other website</p>
+          <p id="link-hint" className="text-xs text-slate-500 mt-2">Paste a link to Google Docs, YouTube, Vocaroo, or any other website</p>
         </div>
       ) : (
         <div className="mb-4">
-          <label className="block text-sm font-bold text-slate-300 mb-2">Upload your file</label>
+          <label htmlFor="submission-file" className="block text-sm font-bold text-slate-300 mb-2">Upload your file</label>
           <input
+            id="submission-file"
             type="file"
             ref={fileInputRef}
             onChange={handleFileChange}
-            className="hidden"
+            className="sr-only"
             accept="image/*,.pdf,.doc,.docx,.mp3,.mp4"
+            aria-describedby="file-hint"
           />
           <button
             onClick={() => fileInputRef.current?.click()}
             className="w-full px-4 py-6 bg-slate-700 border-2 border-dashed border-slate-600 rounded-lg text-slate-400 hover:border-slate-500 hover:text-slate-300 transition-colors"
+            aria-label={fileName ? `Selected file: ${fileName}. Click to change` : 'Click to select a file'}
           >
             {fileName ? (
               <span className="flex items-center justify-center gap-2">
-                <FileText className="w-5 h-5" /> {fileName}
+                <FileText className="w-5 h-5" aria-hidden="true" /> {fileName}
               </span>
             ) : (
               <span className="flex items-center justify-center gap-2">
-                <Upload className="w-5 h-5" /> Click to select a file
+                <Upload className="w-5 h-5" aria-hidden="true" /> Click to select a file
               </span>
             )}
           </button>
-          <p className="text-xs text-slate-500 mt-2">Images, PDFs, Documents, Audio, or Video files</p>
+          <p id="file-hint" className="text-xs text-slate-500 mt-2">Images, PDFs, Documents, Audio, or Video files</p>
         </div>
       )}
 
       <div className="mb-6">
-        <label className="block text-sm font-bold text-slate-300 mb-2">Note to teacher (optional)</label>
+        <label htmlFor="submission-note" className="block text-sm font-bold text-slate-300 mb-2">Note to teacher (optional)</label>
         <textarea
+          id="submission-note"
           value={note}
           onChange={(e) => setNote(e.target.value)}
           placeholder="Anything you want your teacher to know..."
@@ -460,7 +480,7 @@ function SubmissionForm({ activityTitle, onSubmit, onCancel }) {
           {isProcessing ? (
             <>Processing...</>
           ) : (
-            <><Rocket className="w-5 h-5" /> Submit</>
+            <><Rocket className="w-5 h-5" aria-hidden="true" /> Submit</>
           )}
         </button>
       </div>
@@ -476,14 +496,14 @@ function MySubmissions({ submissions, onClose }) {
   const mySubmissions = submissions.filter(s => s.status !== 'approved' || new Date(s.reviewedAt) > new Date(Date.now() - 86400000));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="submissions-dialog-title" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
       <div className="bg-slate-800 border-2 border-blue-500 rounded-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-2xl font-black uppercase italic flex items-center gap-2">
-            <ClipboardList className="w-8 h-8 text-blue-500" /> My Submissions
+          <h3 id="submissions-dialog-title" className="text-2xl font-black uppercase italic flex items-center gap-2">
+            <ClipboardList className="w-8 h-8 text-blue-500" aria-hidden="true" /> My Submissions
           </h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-white">
-            <X className="w-6 h-6" />
+          <button onClick={onClose} className="text-slate-400 hover:text-white" aria-label="Close submissions">
+            <X className="w-6 h-6" aria-hidden="true" />
           </button>
         </div>
 
@@ -498,10 +518,10 @@ function MySubmissions({ submissions, onClose }) {
                     <p className="font-bold text-white">{sub.activityTitle}</p>
                     <p className="text-xs text-slate-400">{new Date(sub.submittedAt).toLocaleDateString()}</p>
                   </div>
-                  <div className={`flex items-center gap-1 text-sm font-bold ${sub.status === 'pending' ? 'text-blue-400' : sub.status === 'approved' ? 'text-green-400' : 'text-red-400'}`}>
-                    {sub.status === 'pending' && <><Clock className="w-4 h-4" /> Pending</>}
-                    {sub.status === 'approved' && <><CheckCheck className="w-4 h-4" /> Approved</>}
-                    {sub.status === 'rejected' && <><XCircle className="w-4 h-4" /> Try Again</>}
+                  <div className={`flex items-center gap-1 text-sm font-bold ${sub.status === 'pending' ? 'text-blue-400' : sub.status === 'approved' ? 'text-green-400' : 'text-red-400'}`} role="status">
+                    {sub.status === 'pending' && <><Clock className="w-4 h-4" aria-hidden="true" /> Pending</>}
+                    {sub.status === 'approved' && <><CheckCheck className="w-4 h-4" aria-hidden="true" /> Approved</>}
+                    {sub.status === 'rejected' && <><XCircle className="w-4 h-4" aria-hidden="true" /> Try Again</>}
                   </div>
                 </div>
                 {sub.teacherFeedback && (
@@ -522,14 +542,14 @@ function MySubmissions({ submissions, onClose }) {
 // ============== TROPHY CASE ==============
 function TrophyCase({ achievements, onClose }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="trophy-dialog-title" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
       <div className="bg-slate-800 border-2 border-yellow-500 rounded-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-2xl font-black uppercase italic flex items-center gap-2">
-            <Trophy className="w-8 h-8 text-yellow-500" /> Trophy Case
+          <h3 id="trophy-dialog-title" className="text-2xl font-black uppercase italic flex items-center gap-2">
+            <Trophy className="w-8 h-8 text-yellow-500" aria-hidden="true" /> Trophy Case
           </h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-white">
-            <X className="w-6 h-6" />
+          <button onClick={onClose} className="text-slate-400 hover:text-white" aria-label="Close trophy case">
+            <X className="w-6 h-6" aria-hidden="true" />
           </button>
         </div>
 
@@ -537,8 +557,8 @@ function TrophyCase({ achievements, onClose }) {
           {ACHIEVEMENTS.map(achievement => {
             const unlocked = achievements.includes(achievement.id);
             return (
-              <div key={achievement.id} className={`p-4 rounded-xl border-2 text-center ${unlocked ? 'bg-slate-700 border-yellow-500' : 'bg-slate-800/50 border-slate-700 opacity-50'}`}>
-                <div className={`text-4xl mb-2 ${unlocked ? '' : 'grayscale'}`}>{achievement.icon}</div>
+              <div key={achievement.id} className={`p-4 rounded-xl border-2 text-center ${unlocked ? 'bg-slate-700 border-yellow-500' : 'bg-slate-800/50 border-slate-700 opacity-50'}`} aria-label={`${achievement.title}: ${achievement.desc}${unlocked ? ' - Unlocked' : ' - Locked'}`}>
+                <div className={`text-4xl mb-2 ${unlocked ? '' : 'grayscale'}`} aria-hidden="true">{achievement.icon}</div>
                 <p className="font-bold text-sm">{achievement.title}</p>
                 <p className="text-xs text-slate-400 mt-1">{achievement.desc}</p>
                 {unlocked && <p className="text-xs text-yellow-500 mt-2">+{achievement.xpReward} XP</p>}
@@ -567,19 +587,19 @@ function AvatarBuilder({ gameState, onBuy, onEquip, onClose, onSetName }) {
   const items = AVATAR_ITEMS[activeTab] || [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="avatar-dialog-title" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
       <div className="bg-slate-800 border-2 border-yellow-500 rounded-2xl max-w-lg w-full p-6">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-2xl font-black uppercase italic flex items-center gap-2">
-            <User className="w-8 h-8 text-yellow-500" /> My Avatar
+          <h3 id="avatar-dialog-title" className="text-2xl font-black uppercase italic flex items-center gap-2">
+            <User className="w-8 h-8 text-yellow-500" aria-hidden="true" /> My Avatar
           </h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-white">
-            <X className="w-6 h-6" />
+          <button onClick={onClose} className="text-slate-400 hover:text-white" aria-label="Close avatar builder">
+            <X className="w-6 h-6" aria-hidden="true" />
           </button>
         </div>
 
         <div className="text-center mb-6">
-          <div className={`w-24 h-24 rounded-full ${AVATAR_ITEMS.colors.find(c => c.id === gameState.avatar.color)?.value || 'bg-blue-500'} flex items-center justify-center text-5xl mx-auto relative`}>
+          <div className={`w-24 h-24 rounded-full ${AVATAR_ITEMS.colors.find(c => c.id === gameState.avatar.color)?.value || 'bg-blue-500'} flex items-center justify-center text-5xl mx-auto relative`} aria-label="Your avatar preview" role="img">
             {AVATAR_ITEMS.faces.find(f => f.id === gameState.avatar.face)?.emoji || '😊'}
             {gameState.avatar.hat !== 'none' && (
               <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-3xl">
@@ -595,7 +615,9 @@ function AvatarBuilder({ gameState, onBuy, onEquip, onClose, onSetName }) {
 
           {editingName ? (
             <div className="mt-4 flex gap-2 justify-center">
+              <label htmlFor="avatar-name" className="sr-only">Your name</label>
               <input
+                id="avatar-name"
                 type="text"
                 value={tempName}
                 onChange={(e) => setTempName(e.target.value)}
@@ -608,8 +630,8 @@ function AvatarBuilder({ gameState, onBuy, onEquip, onClose, onSetName }) {
               </button>
             </div>
           ) : (
-            <button onClick={() => setEditingName(true)} className="mt-4 text-slate-400 hover:text-white text-sm">
-              {gameState.playerName || 'Click to set name'} ✏️
+            <button onClick={() => setEditingName(true)} className="mt-4 text-slate-400 hover:text-white text-sm" aria-label={`Edit name: ${gameState.playerName || 'not set'}`}>
+              {gameState.playerName || 'Click to set name'} <span aria-hidden="true">✏️</span>
             </button>
           )}
 
@@ -619,10 +641,12 @@ function AvatarBuilder({ gameState, onBuy, onEquip, onClose, onSetName }) {
           </div>
         </div>
 
-        <div className="flex gap-2 mb-4">
+        <div className="flex gap-2 mb-4" role="tablist" aria-label="Avatar customization categories">
           {tabs.map(tab => (
             <button
               key={tab.id}
+              role="tab"
+              aria-selected={activeTab === tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex-1 py-2 rounded-lg font-bold text-sm ${activeTab === tab.id ? 'bg-yellow-500 text-slate-900' : 'bg-slate-700 text-slate-300'}`}
             >
@@ -631,7 +655,7 @@ function AvatarBuilder({ gameState, onBuy, onEquip, onClose, onSetName }) {
           ))}
         </div>
 
-        <div className="grid grid-cols-3 gap-3 max-h-48 overflow-y-auto">
+        <div className="grid grid-cols-3 gap-3 max-h-48 overflow-y-auto" role="tabpanel" aria-label={`${activeTab} items`}>
           {items.map(item => {
             const owned = gameState.ownedItems.includes(item.id);
             const equipped = gameState.avatar[activeTab.slice(0, -1)] === item.id;
@@ -642,12 +666,13 @@ function AvatarBuilder({ gameState, onBuy, onEquip, onClose, onSetName }) {
                 onClick={() => owned ? onEquip(activeTab.slice(0, -1), item.id) : gameState.coins >= item.cost && onBuy(item.id, item.cost)}
                 disabled={!owned && gameState.coins < item.cost}
                 className={`p-3 rounded-lg border-2 ${equipped ? 'border-yellow-500 bg-yellow-500/20' : owned ? 'border-green-500 bg-slate-700' : gameState.coins >= item.cost ? 'border-slate-600 bg-slate-700' : 'border-slate-700 bg-slate-800 opacity-50'}`}
+                aria-label={`${item.name}${equipped ? ' (equipped)' : owned ? ' (owned)' : item.cost > 0 ? ` - ${item.cost} coins` : ''}`}
               >
-                <div className={`text-2xl mb-1 ${activeTab === 'colors' ? `w-8 h-8 rounded-full ${item.value} mx-auto` : ''}`}>
+                <div className={`text-2xl mb-1 ${activeTab === 'colors' ? `w-8 h-8 rounded-full ${item.value} mx-auto` : ''}`} aria-hidden="true">
                   {activeTab !== 'colors' && (item.emoji || '—')}
                 </div>
                 <p className="text-xs font-bold truncate">{item.name}</p>
-                {!owned && item.cost > 0 && <p className="text-xs text-yellow-400">{item.cost} 🪙</p>}
+                {!owned && item.cost > 0 && <p className="text-xs text-yellow-400" aria-hidden="true">{item.cost} <span aria-hidden="true">🪙</span></p>}
                 {equipped && <p className="text-xs text-green-400">Equipped</p>}
               </button>
             );
@@ -663,19 +688,19 @@ function MysteryBoxModal({ reward, onClose }) {
   const [revealed, setRevealed] = useState(false);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="mystery-dialog-title" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
       <div className="bg-slate-800 border-2 border-purple-500 rounded-2xl max-w-sm w-full p-6 text-center">
         {!revealed ? (
           <>
-            <div className="text-8xl mb-4 animate-bounce">🎁</div>
-            <h3 className="text-2xl font-black uppercase italic mb-4">Mystery Box!</h3>
+            <div className="text-8xl mb-4 animate-bounce" aria-hidden="true">🎁</div>
+            <h3 id="mystery-dialog-title" className="text-2xl font-black uppercase italic mb-4">Mystery Box!</h3>
             <button onClick={() => setRevealed(true)} className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-black uppercase rounded-xl">
               Open Box
             </button>
           </>
         ) : (
           <>
-            <div className="text-6xl mb-4">✨</div>
+            <div className="text-6xl mb-4" aria-hidden="true">✨</div>
             <p className={`text-sm uppercase tracking-widest ${reward.color} mb-2`}>{reward.rarity}</p>
             <h3 className="text-2xl font-black mb-2">{reward.name}</h3>
             <p className="text-xl text-yellow-400 mb-6">{reward.desc}</p>
@@ -692,10 +717,10 @@ function MysteryBoxModal({ reward, onClose }) {
 // ============== LEVEL UP / ACHIEVEMENT MODALS ==============
 function LevelUpModal({ level, onClose }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
-      <div className="bg-gradient-to-b from-yellow-600 to-yellow-700 border-4 border-yellow-400 rounded-2xl max-w-sm w-full p-8 text-center">
-        <div className="text-8xl mb-4">🎉</div>
-        <h3 className="text-3xl font-black uppercase italic text-white mb-2">Level Up!</h3>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="levelup-dialog-title" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
+      <div className="bg-gradient-to-b from-yellow-600 to-yellow-700 border-4 border-yellow-400 rounded-2xl max-w-sm w-full p-8 text-center" role="alert">
+        <div className="text-8xl mb-4" aria-hidden="true">🎉</div>
+        <h3 id="levelup-dialog-title" className="text-3xl font-black uppercase italic text-white mb-2">Level Up!</h3>
         <p className={`text-4xl font-black ${level.color} mb-2`}>Level {level.level}</p>
         <p className="text-2xl font-bold text-white mb-6">{level.title}</p>
         <button onClick={onClose} className="w-full py-3 bg-white text-yellow-700 font-black uppercase rounded-xl">Let's Go!</button>
@@ -706,11 +731,11 @@ function LevelUpModal({ level, onClose }) {
 
 function AchievementModal({ achievement, onClose }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
-      <div className="bg-slate-800 border-4 border-yellow-500 rounded-2xl max-w-sm w-full p-8 text-center">
-        <div className="text-8xl mb-4">{achievement.icon}</div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="achievement-dialog-title" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
+      <div className="bg-slate-800 border-4 border-yellow-500 rounded-2xl max-w-sm w-full p-8 text-center" role="alert">
+        <div className="text-8xl mb-4" aria-hidden="true">{achievement.icon}</div>
         <p className="text-sm uppercase tracking-widest text-yellow-500 mb-2">Achievement Unlocked!</p>
-        <h3 className="text-2xl font-black uppercase italic text-white mb-2">{achievement.title}</h3>
+        <h3 id="achievement-dialog-title" className="text-2xl font-black uppercase italic text-white mb-2">{achievement.title}</h3>
         <p className="text-slate-400 mb-4">{achievement.desc}</p>
         <p className="text-xl text-yellow-400 font-bold mb-6">+{achievement.xpReward} XP</p>
         <button onClick={onClose} className="w-full py-3 bg-yellow-500 text-slate-900 font-black uppercase rounded-xl">Awesome!</button>
@@ -724,11 +749,11 @@ function ActivityCard({ path, selectedOption, onSelect, completedActivities, pen
   const IconComponent = IconMap[path.icon];
 
   return (
-    <div className="flex flex-col gap-4">
+    <section className="flex flex-col gap-4" aria-labelledby={`path-title-${path.id}`}>
       <div className={`flex items-center gap-3 p-4 rounded-t-xl ${path.color}`}>
-        <IconComponent className="w-6 h-6" />
+        <IconComponent className="w-6 h-6" aria-hidden="true" />
         <div>
-          <h2 className="font-black uppercase italic leading-none">{path.title}</h2>
+          <h2 id={`path-title-${path.id}`} className="font-black uppercase italic leading-none">{path.title}</h2>
           <span className="text-xs opacity-80 font-bold">{path.subtitle}</span>
         </div>
       </div>
@@ -747,13 +772,14 @@ function ActivityCard({ path, selectedOption, onSelect, completedActivities, pen
                 : selectedOption === opt.id ? 'border-yellow-500 bg-slate-700'
                 : 'border-slate-700 bg-slate-800 hover:border-slate-500'
               }`}
+              aria-label={`${opt.title}: ${opt.desc}${isCompleted ? ' - Completed' : isPending ? ' - Pending approval' : ''}`}
             >
               <div className="flex justify-between items-start mb-2">
                 <span className="text-xs font-black uppercase text-slate-400 group-hover:text-yellow-500">{opt.type}</span>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-yellow-500 font-bold">+{opt.xp} XP</span>
-                  {isCompleted && <CheckCircle2 className="w-5 h-5 text-green-500" />}
-                  {isPending && <Clock className="w-5 h-5 text-blue-400" />}
+                  {isCompleted && <CheckCircle2 className="w-5 h-5 text-green-500" aria-hidden="true" />}
+                  {isPending && <Clock className="w-5 h-5 text-blue-400" aria-hidden="true" />}
                 </div>
               </div>
               <h3 className="font-bold text-lg mb-1">{opt.title}</h3>
@@ -763,7 +789,7 @@ function ActivityCard({ path, selectedOption, onSelect, completedActivities, pen
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -782,27 +808,27 @@ function InstructionModal({ activity, path, onSubmit, onClose, dailyQuest, daily
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="instruction-dialog-title" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
       <div className="bg-slate-800 border-2 border-yellow-500 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
-        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white">
-          <X className="w-6 h-6" />
+        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white" aria-label="Close activity instructions">
+          <X className="w-6 h-6" aria-hidden="true" />
         </button>
 
         {!showSubmitForm ? (
           <>
             <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-yellow-500 rounded-lg">
+              <div className="p-2 bg-yellow-500 rounded-lg" aria-hidden="true">
                 <PlayCircle className="w-6 h-6 text-slate-900" />
               </div>
               <div>
-                <h3 className="text-2xl font-black uppercase italic">{activity.title}</h3>
+                <h3 id="instruction-dialog-title" className="text-2xl font-black uppercase italic">{activity.title}</h3>
                 <p className="text-yellow-500 text-sm font-bold uppercase tracking-widest">Active Objective</p>
               </div>
             </div>
 
             {isDailyMatch && !dailyCompleted && (
-              <div className="bg-purple-600/30 border border-purple-500 p-3 rounded-lg mb-6 flex items-center gap-2">
-                <Target className="w-5 h-5 text-purple-400" />
+              <div className="bg-purple-600/30 border border-purple-500 p-3 rounded-lg mb-6 flex items-center gap-2" role="note">
+                <Target className="w-5 h-5 text-purple-400" aria-hidden="true" />
                 <span className="text-sm text-purple-200"><strong>Daily Quest Bonus!</strong> Earn {dailyQuest.multiplier}x XP</span>
               </div>
             )}
@@ -834,13 +860,13 @@ function InstructionModal({ activity, path, onSubmit, onClose, dailyQuest, daily
             </div>
 
             {isCompleted ? (
-              <div className="text-center text-green-400 font-bold py-3">
-                <CheckCircle2 className="w-6 h-6 inline mr-2" />
+              <div className="text-center text-green-400 font-bold py-3" role="status">
+                <CheckCircle2 className="w-6 h-6 inline mr-2" aria-hidden="true" />
                 Already completed!
               </div>
             ) : isPending ? (
-              <div className="text-center text-blue-400 font-bold py-3">
-                <Clock className="w-6 h-6 inline mr-2" />
+              <div className="text-center text-blue-400 font-bold py-3" role="status">
+                <Clock className="w-6 h-6 inline mr-2" aria-hidden="true" />
                 Waiting for teacher approval...
               </div>
             ) : (
@@ -848,7 +874,7 @@ function InstructionModal({ activity, path, onSubmit, onClose, dailyQuest, daily
                 onClick={() => setShowSubmitForm(true)}
                 className="w-full py-3 bg-yellow-500 text-slate-900 font-black uppercase italic rounded-xl hover:bg-yellow-400 transition-colors flex items-center justify-center gap-2"
               >
-                <Rocket className="w-5 h-5" /> Submit My Work
+                <Rocket className="w-5 h-5" aria-hidden="true" /> Submit My Work
               </button>
             )}
           </>
@@ -926,16 +952,17 @@ function GameContent() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 p-4 md:p-8 font-sans relative">
+      <a href="#main-content" className="sr-skip-link">Skip to main content</a>
       <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center p-3 bg-yellow-500 rounded-full mb-4 shadow-lg shadow-yellow-500/20">
+        <header className="text-center mb-6">
+          <div className="inline-flex items-center justify-center p-3 bg-yellow-500 rounded-full mb-4 shadow-lg shadow-yellow-500/20" aria-hidden="true">
             <Gamepad2 className="w-8 h-8 text-slate-900" />
           </div>
           <h1 className="text-4xl md:text-5xl font-black tracking-tighter italic uppercase mb-2">
             Level Up: Adventure Mission
           </h1>
           <p className="text-slate-400 text-lg">Choose your path. Master the content. Own the game.</p>
-        </div>
+        </header>
 
         <PlayerStats
           gameState={gameState}
@@ -951,8 +978,9 @@ function GameContent() {
           <button
             onClick={() => setShowTrophyCase(true)}
             className="flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg hover:border-yellow-500 transition-colors"
+            aria-label={`Trophies: ${gameState.unlockedAchievements.length} of ${ACHIEVEMENTS.length} unlocked`}
           >
-            <Trophy className="w-5 h-5 text-yellow-500" />
+            <Trophy className="w-5 h-5 text-yellow-500" aria-hidden="true" />
             <span className="font-bold">Trophies</span>
             <span className="text-xs bg-yellow-500 text-slate-900 px-2 py-0.5 rounded-full">
               {gameState.unlockedAchievements.length}/{ACHIEVEMENTS.length}
@@ -968,7 +996,7 @@ function GameContent() {
           hasPendingSubmission={hasPendingBoss}
         />
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+        <main id="main-content" className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12" aria-label="Learning paths">
           {learningPaths.map((path) => (
             <ActivityCard
               key={path.id}
@@ -979,16 +1007,16 @@ function GameContent() {
               pendingActivities={pendingActivities}
             />
           ))}
-        </div>
+        </main>
 
         <div className="text-center pb-20">
-          <button onClick={() => setShowInfo(!showInfo)} className="inline-flex items-center gap-2 text-slate-500 hover:text-slate-300 transition-colors">
-            <Info className="w-4 h-4" />
+          <button onClick={() => setShowInfo(!showInfo)} className="inline-flex items-center gap-2 text-slate-500 hover:text-slate-300 transition-colors" aria-expanded={showInfo} aria-controls="pedagogical-info">
+            <Info className="w-4 h-4" aria-hidden="true" />
             {showInfo ? 'Hide Pedagogical Connections' : 'Show Pedagogical Connections'}
           </button>
 
           {showInfo && (
-            <div className="mt-6 p-6 bg-slate-800/50 rounded-xl border border-slate-700 text-left max-w-4xl mx-auto">
+            <div id="pedagogical-info" className="mt-6 p-6 bg-slate-800/50 rounded-xl border border-slate-700 text-left max-w-4xl mx-auto">
               <h4 className="text-yellow-500 font-bold uppercase mb-4 flex items-center gap-2">
                 <Trophy className="w-5 h-5" /> Why this works
               </h4>
@@ -1035,7 +1063,7 @@ function GameContent() {
 function AppContent() {
   const { user, loading } = useAuth();
 
-  if (loading) return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">Loading...</div>;
+  if (loading) return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white" role="status" aria-live="polite">Loading...</div>;
 
   if (!user) {
     return <LoginScreen />;

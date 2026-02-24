@@ -11,12 +11,25 @@ export default function ActivityEditor({ classId, onSave, onCancel }) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Load existing custom activities for this class if any
+    // Load existing custom activities and category names for this class
     const loadData = async () => {
       setLoading(true);
-      const customPaths = await backend.getClassActivities(classId);
-      if (customPaths) {
-        setLearningPaths(customPaths);
+      const classDoc = await backend.getClass(classId);
+      if (classDoc) {
+        let paths = classDoc.activities && classDoc.activities.length > 0
+          ? classDoc.activities
+          : DEFAULT_PATHS;
+
+        // Apply custom category names so headers reflect teacher's choices
+        if (classDoc.categoryNames || classDoc.categorySubtitles) {
+          paths = paths.map(path => ({
+            ...path,
+            title: classDoc.categoryNames?.[path.id] || path.title,
+            subtitle: classDoc.categorySubtitles?.[path.id] || path.subtitle,
+          }));
+        }
+
+        setLearningPaths(paths);
       }
       setLoading(false);
     };
@@ -113,19 +126,21 @@ export default function ActivityEditor({ classId, onSave, onCancel }) {
 
   if (showLibrary) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-sm">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="library-dialog-title" onKeyDown={(e) => e.key === 'Escape' && setShowLibrary(false)}>
         <div className="bg-slate-800 border-2 border-blue-500 rounded-2xl w-full max-w-4xl p-6 h-[80vh] flex flex-col">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-2xl font-bold text-white flex items-center gap-2">
-              <BookOpen className="w-6 h-6 text-blue-400" /> Activity Library
+            <h3 id="library-dialog-title" className="text-2xl font-bold text-white flex items-center gap-2">
+              <BookOpen className="w-6 h-6 text-blue-400" aria-hidden="true" /> Activity Library
             </h3>
-            <button onClick={() => setShowLibrary(false)}><X className="w-6 h-6 text-slate-400 hover:text-white" /></button>
+            <button onClick={() => setShowLibrary(false)} aria-label="Close activity library"><X className="w-6 h-6 text-slate-400 hover:text-white" aria-hidden="true" /></button>
           </div>
 
           <div className="mb-4 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" aria-hidden="true" />
+            <label htmlFor="library-search" className="sr-only">Search activities</label>
             <input
-              type="text"
+              id="library-search"
+              type="search"
               placeholder="Search activities..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -190,16 +205,20 @@ export default function ActivityEditor({ classId, onSave, onCancel }) {
               {path.options.map(activity => (
                 <div key={activity.id} className="p-4 bg-slate-700 rounded-lg border border-slate-600 relative group">
                   <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => handlePublish(activity)} title="Publish to Library" className="p-1 hover:text-blue-400"><BookOpen className="w-4 h-4" /></button>
-                    <button onClick={() => handleDeleteActivity(path.id, activity.id)} title="Delete" className="p-1 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
+                    <button onClick={() => handlePublish(activity)} aria-label={`Publish ${activity.title} to library`} className="p-1 hover:text-blue-400"><BookOpen className="w-4 h-4" aria-hidden="true" /></button>
+                    <button onClick={() => handleDeleteActivity(path.id, activity.id)} aria-label={`Delete ${activity.title}`} className="p-1 hover:text-red-400"><Trash2 className="w-4 h-4" aria-hidden="true" /></button>
                   </div>
 
+                  <label className="sr-only" htmlFor={`title-${activity.id}`}>Activity title</label>
                   <input
+                    id={`title-${activity.id}`}
                     className="bg-transparent font-bold text-white w-full mb-1 border-b border-transparent focus:border-blue-500 outline-none"
                     value={activity.title}
                     onChange={(e) => handleUpdateActivity(path.id, activity.id, 'title', e.target.value)}
                   />
+                  <label className="sr-only" htmlFor={`desc-${activity.id}`}>Activity description</label>
                   <textarea
+                    id={`desc-${activity.id}`}
                     className="bg-transparent text-sm text-slate-300 w-full resize-none border-b border-transparent focus:border-blue-500 outline-none"
                     value={activity.desc}
                     onChange={(e) => handleUpdateActivity(path.id, activity.id, 'desc', e.target.value)}
@@ -207,8 +226,9 @@ export default function ActivityEditor({ classId, onSave, onCancel }) {
                   />
                   <div className="grid grid-cols-2 gap-2 mt-2 mb-2">
                     <div className="flex gap-1">
-                      <span className="text-xs text-slate-500 pt-1">XP:</span>
+                      <label htmlFor={`xp-${activity.id}`} className="text-xs text-slate-500 pt-1">XP:</label>
                       <input
+                        id={`xp-${activity.id}`}
                         className="bg-slate-800 text-xs text-yellow-400 w-16 px-1 rounded"
                         type="number"
                         value={activity.xp}
@@ -216,7 +236,9 @@ export default function ActivityEditor({ classId, onSave, onCancel }) {
                       />
                     </div>
                     <div>
+                      <label htmlFor={`type-${activity.id}`} className="sr-only">Activity type</label>
                       <select
+                        id={`type-${activity.id}`}
                         className="bg-slate-800 text-xs text-slate-300 w-full px-1 rounded border-none"
                         value={activity.type}
                         onChange={(e) => handleUpdateActivity(path.id, activity.id, 'type', e.target.value)}
@@ -234,8 +256,9 @@ export default function ActivityEditor({ classId, onSave, onCancel }) {
                     <span className="text-xs text-slate-500 font-bold block mb-1">Steps:</span>
                     {activity.steps.map((step, idx) => (
                       <div key={idx} className="flex gap-1 mb-1">
-                         <span className="text-xs text-slate-500 w-4">{idx+1}.</span>
+                         <label htmlFor={`step-${activity.id}-${idx}`} className="text-xs text-slate-500 w-4">{idx+1}.</label>
                          <input
+                           id={`step-${activity.id}-${idx}`}
                            className="bg-slate-800 text-xs text-white flex-1 px-1 rounded"
                            value={step}
                            onChange={(e) => {
@@ -250,6 +273,7 @@ export default function ActivityEditor({ classId, onSave, onCancel }) {
                               handleUpdateActivity(path.id, activity.id, 'steps', newSteps);
                            }}
                            className="text-red-400 text-xs hover:text-white"
+                           aria-label={`Remove step ${idx + 1}`}
                          >
                            X
                          </button>
@@ -264,8 +288,9 @@ export default function ActivityEditor({ classId, onSave, onCancel }) {
                   </div>
 
                   <div>
-                    <span className="text-xs text-slate-500 font-bold block mb-1">Pro Tip:</span>
+                    <label htmlFor={`protip-${activity.id}`} className="text-xs text-slate-500 font-bold block mb-1">Pro Tip:</label>
                     <input
+                      id={`protip-${activity.id}`}
                       className="bg-slate-800 text-xs text-blue-300 w-full px-1 rounded"
                       value={activity.proTip || ''}
                       onChange={(e) => handleUpdateActivity(path.id, activity.id, 'proTip', e.target.value)}

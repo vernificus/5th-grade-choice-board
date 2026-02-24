@@ -3,7 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import { realBackend as backend } from '../services/realBackend';
 import {
   Users, Plus, LogOut, BookOpen, ClipboardList, CheckCircle2,
-  XCircle, Clock, ChevronRight, GraduationCap, Copy, Trash2, Edit, RefreshCw
+  XCircle, Clock, ChevronRight, GraduationCap, Copy, Trash2, Edit, RefreshCw, RotateCcw, Link, Save, Gift,
+  Share2, UserPlus, X, Mail
 } from 'lucide-react';
 import { FileViewer } from './FileViewer';
 import ActivityEditor from './ActivityEditor';
@@ -18,7 +19,15 @@ export default function TeacherPortal() {
   const [loading, setLoading] = useState(false);
   const [creatingClass, setCreatingClass] = useState(false);
   const [newClassName, setNewClassName] = useState('');
-  const [activeTab, setActiveTab] = useState('submissions'); // 'submissions', 'students', 'activities'
+  const [activeTab, setActiveTab] = useState('submissions'); // 'submissions', 'students', 'activities', 'categories'
+  const [categoryNames, setCategoryNames] = useState({ path1: '', path2: '', path3: '' });
+  const [categorySubtitles, setCategorySubtitles] = useState({ path1: '', path2: '', path3: '' });
+  const [savingCategories, setSavingCategories] = useState(false);
+
+  // Co-teacher state
+  const [coTeachers, setCoTeachers] = useState([]);
+  const [coTeacherEmail, setCoTeacherEmail] = useState('');
+  const [addingCoTeacher, setAddingCoTeacher] = useState(false);
 
   useEffect(() => {
     loadClasses();
@@ -92,9 +101,97 @@ export default function TeacherPortal() {
     }
   };
 
+  // Load co-teachers when class changes
+  useEffect(() => {
+    if (selectedClass) {
+      backend.getCoTeachers(selectedClass.id).then(setCoTeachers);
+    } else {
+      setCoTeachers([]);
+    }
+  }, [selectedClass]);
+
+  const handleAddCoTeacher = async (e) => {
+    e.preventDefault();
+    if (!coTeacherEmail.trim()) return;
+    setAddingCoTeacher(true);
+    try {
+      await backend.addCoTeacher(selectedClass.id, coTeacherEmail.trim().toLowerCase());
+      setCoTeacherEmail('');
+      const updated = await backend.getCoTeachers(selectedClass.id);
+      setCoTeachers(updated);
+      alert('Co-teacher added!');
+    } catch (error) {
+      alert(error.message);
+    }
+    setAddingCoTeacher(false);
+  };
+
+  const handleRemoveCoTeacher = async (coTeacherId, coTeacherName) => {
+    if (!window.confirm(`Remove ${coTeacherName} as co-teacher?`)) return;
+    try {
+      await backend.removeCoTeacher(selectedClass.id, coTeacherId);
+      setCoTeachers(prev => prev.filter(t => t.id !== coTeacherId));
+    } catch (error) {
+      alert(error.message);
+    }
+  };
+
+  // Load category names when class changes
+  useEffect(() => {
+    if (selectedClass) {
+      setCategoryNames({
+        path1: selectedClass.categoryNames?.path1 || 'The Wordsmith',
+        path2: selectedClass.categoryNames?.path2 || 'The Data Scientist',
+        path3: selectedClass.categoryNames?.path3 || 'The Creator',
+      });
+      setCategorySubtitles({
+        path1: selectedClass.categorySubtitles?.path1 || 'Vocabulary Quest',
+        path2: selectedClass.categorySubtitles?.path2 || 'Progress Mission',
+        path3: selectedClass.categorySubtitles?.path3 || 'Expression Boss',
+      });
+    }
+  }, [selectedClass]);
+
+  const handleSaveCategories = async () => {
+    if (!selectedClass) return;
+    setSavingCategories(true);
+    try {
+      await backend.updateClass(selectedClass.id, { categoryNames, categorySubtitles });
+      // Update local class data
+      setSelectedClass(prev => ({ ...prev, categoryNames, categorySubtitles }));
+      setClasses(prev => prev.map(c => c.id === selectedClass.id ? { ...c, categoryNames, categorySubtitles } : c));
+      alert('Category names saved!');
+    } catch (error) {
+      alert('Error saving categories: ' + error.message);
+    }
+    setSavingCategories(false);
+  };
+
   const copyCode = (code) => {
     navigator.clipboard.writeText(code);
     alert('Class code copied!');
+  };
+
+  const copyJoinLink = (code) => {
+    const url = `https://level-up-choice-board-game.web.app/?code=${code}`;
+    navigator.clipboard.writeText(url);
+    alert('Join link copied!');
+  };
+
+  const handleResetClassActivities = async () => {
+    if (!selectedClass) return;
+    if (!window.confirm(
+      `Reset all activity completion status for "${selectedClass.name}"?\n\n` +
+      'This lets all students redo activities and earn XP again.\n' +
+      'XP, coins, achievements, and streaks are NOT affected.'
+    )) return;
+    try {
+      const count = await backend.resetClassActivities(selectedClass.id);
+      alert(`Activities reset for ${count} student${count !== 1 ? 's' : ''}. They can now redo all activities.`);
+      backend.getStudents(selectedClass.id).then(setStudents);
+    } catch (error) {
+      alert('Error resetting activities: ' + error.message);
+    }
   };
 
   // Filter submissions
@@ -106,9 +203,9 @@ export default function TeacherPortal() {
       <div className="max-w-6xl mx-auto">
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-8 pb-8 border-b border-slate-700">
+        <header className="flex items-center justify-between mb-8 pb-8 border-b border-slate-700">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-green-600 rounded-lg">
+            <div className="p-3 bg-green-600 rounded-lg" aria-hidden="true">
               <GraduationCap className="w-8 h-8 text-white" />
             </div>
             <div>
@@ -120,9 +217,9 @@ export default function TeacherPortal() {
             onClick={logout}
             className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors"
           >
-            <LogOut className="w-5 h-5" /> Logout
+            <LogOut className="w-5 h-5" aria-hidden="true" /> Logout
           </button>
-        </div>
+        </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
 
@@ -133,14 +230,17 @@ export default function TeacherPortal() {
               <button
                 onClick={() => setCreatingClass(true)}
                 className="text-green-400 hover:text-green-300"
+                aria-label="Create new class"
               >
-                <Plus className="w-5 h-5" />
+                <Plus className="w-5 h-5" aria-hidden="true" />
               </button>
             </div>
 
             {creatingClass && (
-              <form onSubmit={handleCreateClass} className="mb-4 bg-slate-800 p-3 rounded-lg border border-slate-600">
+              <form onSubmit={handleCreateClass} className="mb-4 bg-slate-800 p-3 rounded-lg border border-slate-600" aria-label="Create new class">
+                <label htmlFor="new-class-name" className="sr-only">Class Name</label>
                 <input
+                  id="new-class-name"
                   autoFocus
                   type="text"
                   placeholder="Class Name"
@@ -155,25 +255,29 @@ export default function TeacherPortal() {
               </form>
             )}
 
-            <div className="space-y-2">
+            <div className="space-y-2" role="listbox" aria-label="Your classes">
               {classes.map(cls => (
                 <div
                   key={cls.id}
+                  role="option"
+                  aria-selected={selectedClass?.id === cls.id}
+                  tabIndex={0}
                   onClick={() => setSelectedClass(cls)}
+                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setSelectedClass(cls)}
                   className={`w-full p-4 rounded-xl text-left transition-all cursor-pointer relative group ${selectedClass?.id === cls.id ? 'bg-green-600 text-white shadow-lg shadow-green-900/50' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
                 >
                   <div className="font-bold text-lg pr-6">{cls.name}</div>
                   <div className="flex justify-between items-center mt-2 text-sm opacity-80">
-                    <span className="flex items-center gap-1"><Users className="w-4 h-4" /> {cls.studentCount || 0} Students</span>
+                    <span className="flex items-center gap-1"><Users className="w-4 h-4" aria-hidden="true" /> {cls.studentCount || 0} Students</span>
                     <span className="font-mono bg-black/20 px-2 rounded text-xs">Code: {cls.code}</span>
                   </div>
 
                   <button
                     onClick={(e) => handleDeleteClass(cls.id, e)}
                     className="absolute top-2 right-2 p-2 text-red-300 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="Delete Class"
+                    aria-label={`Delete class ${cls.name}`}
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-4 h-4" aria-hidden="true" />
                   </button>
                 </div>
               ))}
@@ -196,8 +300,11 @@ export default function TeacherPortal() {
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-slate-400 text-sm">Class Code:</span>
                         <code className="text-xl font-mono font-bold text-green-400 tracking-widest">{selectedClass.code}</code>
-                        <button onClick={() => copyCode(selectedClass.code)} className="text-slate-500 hover:text-white">
-                          <Copy className="w-4 h-4" />
+                        <button onClick={() => copyCode(selectedClass.code)} className="text-slate-500 hover:text-white" aria-label="Copy class code">
+                          <Copy className="w-4 h-4" aria-hidden="true" />
+                        </button>
+                        <button onClick={() => copyJoinLink(selectedClass.code)} className="flex items-center gap-1 text-xs text-slate-500 hover:text-white ml-2" aria-label="Copy join link">
+                          <Link className="w-4 h-4" aria-hidden="true" /> Copy Join Link
                         </button>
                       </div>
                     </div>
@@ -206,9 +313,9 @@ export default function TeacherPortal() {
                         onClick={handleRefresh}
                         disabled={loading}
                         className="p-2 text-slate-400 hover:text-white transition-colors"
-                        title="Refresh data"
+                        aria-label={loading ? 'Refreshing data...' : 'Refresh data'}
                       >
-                        <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+                        <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
                       </button>
                       <div className="text-right">
                         <p className="text-3xl font-black text-white">{pending.length}</p>
@@ -216,7 +323,7 @@ export default function TeacherPortal() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-4">
+                  <div className="flex items-center gap-4 mt-3">
                     <div className="text-right">
                       <p className="text-3xl font-black text-white">{students.length}</p>
                       <p className="text-slate-400 text-xs uppercase font-bold">Students</p>
@@ -225,58 +332,249 @@ export default function TeacherPortal() {
                       <p className="text-3xl font-black text-white">{pending.length}</p>
                       <p className="text-slate-400 text-xs uppercase font-bold">Pending</p>
                     </div>
+                    <div className="ml-auto">
+                      <button
+                        onClick={handleResetClassActivities}
+                        className="flex items-center gap-2 px-4 py-2 bg-orange-600/20 hover:bg-orange-600/40 border border-orange-500/50 text-orange-300 rounded-lg text-sm font-bold transition-colors"
+                        aria-label="Reset activity completion for all students"
+                      >
+                        <RotateCcw className="w-4 h-4" aria-hidden="true" /> Reset Activities
+                      </button>
+                      <p className="text-xs text-slate-500 mt-1">Auto-resets Mondays at 7am</p>
+                    </div>
                   </div>
                 </div>
 
                 {/* Tabs */}
-                <div className="flex gap-4 mb-6 border-b border-slate-700">
+                <div className="flex gap-4 mb-6 border-b border-slate-700" role="tablist" aria-label="Class management">
                   <button
+                    role="tab"
+                    aria-selected={activeTab === 'submissions'}
+                    aria-controls="tabpanel-submissions"
+                    id="tab-submissions"
                     onClick={() => setActiveTab('submissions')}
                     className={`pb-4 px-2 font-bold ${activeTab === 'submissions' ? 'text-green-400 border-b-2 border-green-400' : 'text-slate-400 hover:text-white'}`}
                   >
                     Submissions
                   </button>
                   <button
+                    role="tab"
+                    aria-selected={activeTab === 'students'}
+                    aria-controls="tabpanel-students"
+                    id="tab-students"
                     onClick={() => setActiveTab('students')}
                     className={`pb-4 px-2 font-bold ${activeTab === 'students' ? 'text-green-400 border-b-2 border-green-400' : 'text-slate-400 hover:text-white'}`}
                   >
                     Students
                   </button>
                   <button
+                    role="tab"
+                    aria-selected={activeTab === 'activities'}
+                    aria-controls="tabpanel-activities"
+                    id="tab-activities"
                     onClick={() => setActiveTab('activities')}
                     className={`pb-4 px-2 font-bold ${activeTab === 'activities' ? 'text-green-400 border-b-2 border-green-400' : 'text-slate-400 hover:text-white'}`}
                   >
                     Activities
                   </button>
+                  <button
+                    role="tab"
+                    aria-selected={activeTab === 'categories'}
+                    aria-controls="tabpanel-categories"
+                    id="tab-categories"
+                    onClick={() => setActiveTab('categories')}
+                    className={`pb-4 px-2 font-bold ${activeTab === 'categories' ? 'text-green-400 border-b-2 border-green-400' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    Categories
+                  </button>
+                  <button
+                    role="tab"
+                    aria-selected={activeTab === 'sharing'}
+                    aria-controls="tabpanel-sharing"
+                    id="tab-sharing"
+                    onClick={() => setActiveTab('sharing')}
+                    className={`pb-4 px-2 font-bold ${activeTab === 'sharing' ? 'text-green-400 border-b-2 border-green-400' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    Sharing
+                  </button>
                 </div>
 
                 {activeTab === 'activities' && (
-                  <ActivityEditor
+                  <div role="tabpanel" id="tabpanel-activities" aria-labelledby="tab-activities"><ActivityEditor
                     classId={selectedClass.id}
                     onSave={() => alert('Activities updated!')}
-                  />
+                  /></div>
+                )}
+
+                {activeTab === 'categories' && (
+                  <div role="tabpanel" id="tabpanel-categories" aria-labelledby="tab-categories">
+                    <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                      <h3 className="text-xl font-bold text-white mb-2">Category Names</h3>
+                      <p className="text-slate-400 text-sm mb-6">Customize the three learning path category names and subtitles that students see.</p>
+                      <div className="space-y-6">
+                        {[
+                          { key: 'path1', color: 'border-blue-500', defaultName: 'The Wordsmith', defaultSub: 'Vocabulary Quest' },
+                          { key: 'path2', color: 'border-purple-500', defaultName: 'The Data Scientist', defaultSub: 'Progress Mission' },
+                          { key: 'path3', color: 'border-orange-500', defaultName: 'The Creator', defaultSub: 'Expression Boss' },
+                        ].map(({ key, color, defaultName, defaultSub }) => (
+                          <div key={key} className={`p-4 bg-slate-700 rounded-lg border-l-4 ${color}`}>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label htmlFor={`cat-name-${key}`} className="block text-xs text-slate-400 font-bold uppercase mb-1">Category Name</label>
+                                <input
+                                  id={`cat-name-${key}`}
+                                  type="text"
+                                  value={categoryNames[key]}
+                                  onChange={e => setCategoryNames(prev => ({ ...prev, [key]: e.target.value }))}
+                                  placeholder={defaultName}
+                                  className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:border-green-500 outline-none"
+                                />
+                              </div>
+                              <div>
+                                <label htmlFor={`cat-sub-${key}`} className="block text-xs text-slate-400 font-bold uppercase mb-1">Subtitle</label>
+                                <input
+                                  id={`cat-sub-${key}`}
+                                  type="text"
+                                  value={categorySubtitles[key]}
+                                  onChange={e => setCategorySubtitles(prev => ({ ...prev, [key]: e.target.value }))}
+                                  placeholder={defaultSub}
+                                  className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:border-green-500 outline-none"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        onClick={handleSaveCategories}
+                        disabled={savingCategories}
+                        className="mt-6 flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        <Save className="w-4 h-4" aria-hidden="true" /> {savingCategories ? 'Saving...' : 'Save Category Names'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'sharing' && (
+                  <div role="tabpanel" id="tabpanel-sharing" aria-labelledby="tab-sharing">
+                    <div className="space-y-6">
+                      {/* Student Join Link */}
+                      <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                        <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+                          <Link className="w-5 h-5 text-blue-400" aria-hidden="true" /> Student Join Link
+                        </h3>
+                        <p className="text-slate-400 text-sm mb-4">
+                          Share this link with students. They can create their own account and join the class directly.
+                        </p>
+                        <div className="flex items-center gap-3 bg-slate-900 p-3 rounded-lg border border-slate-700">
+                          <code className="flex-1 text-blue-400 text-sm break-all">
+                            {`${window.location.origin}/?code=${selectedClass.code}`}
+                          </code>
+                          <button
+                            onClick={() => copyJoinLink(selectedClass.code)}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-sm whitespace-nowrap"
+                          >
+                            <Copy className="w-4 h-4" aria-hidden="true" /> Copy Link
+                          </button>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-2">
+                          Students who use this link can sign up with their own name and password. You can edit their info from the Students tab.
+                        </p>
+                      </div>
+
+                      {/* Co-Teacher Management */}
+                      <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                        <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+                          <Share2 className="w-5 h-5 text-purple-400" aria-hidden="true" /> Co-Teachers
+                        </h3>
+                        <p className="text-slate-400 text-sm mb-4">
+                          Add other teachers to help manage this class. They'll see it in their dashboard and can review submissions, manage students, and edit activities.
+                        </p>
+
+                        {!selectedClass.isCoTeacher && (
+                          <form onSubmit={handleAddCoTeacher} className="flex gap-3 mb-6" aria-label="Add co-teacher">
+                            <div className="flex-1 relative">
+                              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" aria-hidden="true" />
+                              <label htmlFor="co-teacher-email" className="sr-only">Co-teacher email</label>
+                              <input
+                                id="co-teacher-email"
+                                type="email"
+                                placeholder="Enter teacher's email address"
+                                value={coTeacherEmail}
+                                onChange={e => setCoTeacherEmail(e.target.value)}
+                                className="w-full px-4 py-2 pl-10 bg-slate-700 rounded-lg text-white border border-slate-600 focus:border-purple-500 outline-none"
+                              />
+                            </div>
+                            <button
+                              type="submit"
+                              disabled={addingCoTeacher}
+                              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-sm disabled:opacity-50"
+                            >
+                              <UserPlus className="w-4 h-4" aria-hidden="true" /> {addingCoTeacher ? 'Adding...' : 'Add'}
+                            </button>
+                          </form>
+                        )}
+
+                        {selectedClass.isCoTeacher && (
+                          <div className="mb-4 p-3 bg-purple-900/20 border border-purple-500/30 rounded-lg text-purple-300 text-sm">
+                            You are a co-teacher on this class. Only the class owner can add or remove co-teachers.
+                          </div>
+                        )}
+
+                        {coTeachers.length > 0 ? (
+                          <div className="space-y-2">
+                            {coTeachers.map(ct => (
+                              <div key={ct.id} className="flex items-center justify-between p-3 bg-slate-700 rounded-lg border border-slate-600">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center text-sm font-bold text-white" aria-hidden="true">
+                                    {ct.name?.charAt(0)?.toUpperCase() || '?'}
+                                  </div>
+                                  <div>
+                                    <p className="font-bold text-white text-sm">{ct.name}</p>
+                                    <p className="text-xs text-slate-400">{ct.email}</p>
+                                  </div>
+                                </div>
+                                {!selectedClass.isCoTeacher && (
+                                  <button
+                                    onClick={() => handleRemoveCoTeacher(ct.id, ct.name)}
+                                    className="p-2 text-slate-400 hover:text-red-400 transition-colors"
+                                    aria-label={`Remove ${ct.name} as co-teacher`}
+                                  >
+                                    <X className="w-4 h-4" aria-hidden="true" />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-slate-500 text-sm italic">No co-teachers added yet.</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 )}
 
                 {activeTab === 'students' && (
-                  <RosterManager
+                  <div role="tabpanel" id="tabpanel-students" aria-labelledby="tab-students"><RosterManager
                     classId={selectedClass.id}
                     onStudentAdded={() => backend.getStudents(selectedClass.id).then(setStudents)}
-                  />
+                  /></div>
                 )}
 
                 {activeTab === 'submissions' && (
-                  <>
+                  <div role="tabpanel" id="tabpanel-submissions" aria-labelledby="tab-submissions">
                     {loading ? (
-                      <div className="text-center py-12 text-slate-500">Loading submissions...</div>
+                      <div className="text-center py-12 text-slate-500" role="status" aria-live="polite">Loading submissions...</div>
                     ) : (
                       <>
                         <h3 className="font-bold text-slate-400 uppercase text-xs tracking-widest mb-4 flex items-center gap-2">
-                          <Clock className="w-4 h-4" /> Pending Reviews ({pending.length})
+                          <Clock className="w-4 h-4" aria-hidden="true" /> Pending Reviews ({pending.length})
                         </h3>
 
                         {pending.length === 0 ? (
                           <div className="bg-slate-800/50 rounded-xl p-8 text-center text-slate-500 mb-8">
-                            <CheckCircle2 className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                            <CheckCircle2 className="w-12 h-12 mx-auto mb-2 opacity-20" aria-hidden="true" />
                             No pending submissions. You're all caught up!
                           </div>
                         ) : (
@@ -290,7 +588,7 @@ export default function TeacherPortal() {
                         {reviewed.length > 0 && (
                           <>
                             <h3 className="font-bold text-slate-400 uppercase text-xs tracking-widest mb-4 flex items-center gap-2 border-t border-slate-700 pt-8">
-                              <CheckCircle2 className="w-4 h-4" /> Reviewed History
+                              <CheckCircle2 className="w-4 h-4" aria-hidden="true" /> Reviewed History
                             </h3>
                             <div className="opacity-60 hover:opacity-100 transition-opacity space-y-4">
                               {reviewed.slice(0, 5).map(sub => (
@@ -309,12 +607,12 @@ export default function TeacherPortal() {
                         )}
                       </>
                     )}
-                  </>
+                  </div>
                 )}
               </div>
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-slate-500 border-2 border-dashed border-slate-800 rounded-3xl min-h-[400px]">
-                <BookOpen className="w-16 h-16 mb-4 opacity-20" />
+                <BookOpen className="w-16 h-16 mb-4 opacity-20" aria-hidden="true" />
                 <p>Select a class to view dashboard</p>
               </div>
             )}
@@ -328,9 +626,10 @@ export default function TeacherPortal() {
 
 function SubmissionCard({ submission, onReview }) {
   const [feedback, setFeedback] = useState('');
+  const feedbackId = `feedback-${submission.id}`;
 
   return (
-    <div className="bg-slate-800 border-2 border-slate-700 rounded-xl p-6 hover:border-blue-500 transition-colors">
+    <article className="bg-slate-800 border-2 border-slate-700 rounded-xl p-6 hover:border-blue-500 transition-colors" aria-label={`Submission from ${submission.playerName}: ${submission.activityTitle}`}>
       <div className="flex justify-between items-start mb-4">
         <div>
           <h4 className="font-bold text-lg text-white">{submission.activityTitle}</h4>
@@ -369,8 +668,9 @@ function SubmissionCard({ submission, onReview }) {
 
       <div className="flex gap-4 items-end">
         <div className="flex-1">
-          <label className="text-xs text-slate-400 font-bold uppercase mb-1 block">Feedback</label>
+          <label htmlFor={feedbackId} className="text-xs text-slate-400 font-bold uppercase mb-1 block">Feedback</label>
           <input
+            id={feedbackId}
             type="text"
             value={feedback}
             onChange={e => setFeedback(e.target.value)}
@@ -391,6 +691,6 @@ function SubmissionCard({ submission, onReview }) {
           Approve (+{submission.xp} XP)
         </button>
       </div>
-    </div>
+    </article>
   );
 }

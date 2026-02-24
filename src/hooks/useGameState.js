@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { LEVELS, ACHIEVEMENTS, DAILY_QUESTS, MYSTERY_REWARDS, LEARNING_PATHS as DEFAULT_PATHS } from '../data/gameData';
 import { realBackend as backend } from '../services/realBackend';
 import { useAuth } from '../context/AuthContext';
@@ -31,7 +31,31 @@ const getDefaultState = () => ({
   totalActivitiesCompleted: 0,
   collaborationCount: 0,
   pathCompletions: { path1: 0, path2: 0, path3: 0 },
+  lastActivityReset: null,
 });
+
+// Get the most recent Monday at 7:00 AM (local time)
+function getMostRecentMonday7am() {
+  const now = new Date();
+  const day = now.getDay(); // 0=Sun, 1=Mon, ...
+  const diff = (day === 0 ? 6 : day - 1); // days since last Monday
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - diff);
+  monday.setHours(7, 0, 0, 0);
+  // If it's Monday but before 7am, go back to previous Monday
+  if (monday > now) {
+    monday.setDate(monday.getDate() - 7);
+  }
+  return monday;
+}
+
+// Check if activities should be auto-reset (weekly Monday 7am)
+function shouldAutoReset(lastResetIso) {
+  const monday7am = getMostRecentMonday7am();
+  if (!lastResetIso) return true; // never reset before
+  const lastReset = new Date(lastResetIso);
+  return lastReset < monday7am;
+}
 
 export function useGameState() {
   const { user } = useAuth();
@@ -58,10 +82,25 @@ export function useGameState() {
   const loadClassActivities = async () => {
     if (!user.classId) return;
     try {
-      const customPaths = await backend.getClassActivities(user.classId);
-      if (customPaths && customPaths.length > 0) {
-        setLearningPaths(customPaths);
+      // Fetch the class document once to get both activities and category names
+      const classDoc = await backend.getClass(user.classId);
+      if (!classDoc) return;
+
+      // Start with custom activities if saved, otherwise keep defaults
+      let paths = classDoc.activities && classDoc.activities.length > 0
+        ? classDoc.activities
+        : DEFAULT_PATHS;
+
+      // Apply custom category names/subtitles on top
+      if (classDoc.categoryNames || classDoc.categorySubtitles) {
+        paths = paths.map(path => ({
+          ...path,
+          title: classDoc.categoryNames?.[path.id] || path.title,
+          subtitle: classDoc.categorySubtitles?.[path.id] || path.subtitle,
+        }));
       }
+
+      setLearningPaths(paths);
     } catch (e) {
       console.error("Failed to load class activities", e);
     }
@@ -72,6 +111,15 @@ export function useGameState() {
       const studentData = await backend.getStudent(user.id);
       if (studentData) {
         const { id, classId, name, ...gameData } = studentData;
+
+        // Check for weekly auto-reset (Monday 7am)
+        if (shouldAutoReset(gameData.lastActivityReset)) {
+          gameData.completedActivities = [];
+          gameData.lastActivityReset = new Date().toISOString();
+          // Persist the reset to backend
+          await backend.resetStudentActivities(user.id);
+        }
+
         setGameState(prev => ({
           ...prev,
           ...gameData,
@@ -317,13 +365,19 @@ export function useGameState() {
     }
   }, [user]);
 
+  // Track which submission IDs we've already processed rewards for (to avoid double-counting
+  // the same approved submission during polling). This is an in-memory set, not persisted.
+  const processedSubmissionIds = useRef(new Set());
+
   const processReward = (submission) => {
+    // Skip if we already processed this exact submission (prevents double-counting from polls)
+    if (processedSubmissionIds.current.has(submission.id)) return;
+    processedSubmissionIds.current.add(submission.id);
+
     const today = new Date().toDateString();
 
     setGameState(prev => {
-       if (prev.completedActivities.includes(submission.activityId) && !submission.isBoss) {
-         return prev;
-       }
+       // Boss challenges still use per-boss dedup (they reset weekly by rotation)
        if (submission.isBoss && prev.completedBossChallenges.includes(submission.activityId)) {
          return prev;
        }

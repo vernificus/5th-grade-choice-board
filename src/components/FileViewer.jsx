@@ -8,7 +8,7 @@ export function FileViewer({ content, fileName, fileType }) {
   if (fileType?.startsWith('image/')) {
     return (
       <div className="mt-2">
-        <img src={content} alt={fileName} className="max-w-full max-h-64 rounded-lg border border-slate-600" />
+        <img src={content} alt={`Submitted file: ${fileName}`} className="max-w-full max-h-64 rounded-lg border border-slate-600" />
       </div>
     );
   }
@@ -22,7 +22,7 @@ export function FileViewer({ content, fileName, fileType }) {
           download={fileName}
           className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-white font-bold"
         >
-          <FileText className="w-5 h-5" /> Download PDF: {fileName}
+          <FileText className="w-5 h-5" aria-hidden="true" /> Download PDF: {fileName}
         </a>
       </div>
     );
@@ -32,7 +32,7 @@ export function FileViewer({ content, fileName, fileType }) {
   if (fileType?.startsWith('audio/')) {
     return (
       <div className="mt-2">
-        <audio controls src={content} className="w-full">
+        <audio controls src={content} className="w-full" aria-label={`Audio file: ${fileName}`}>
           Your browser does not support audio playback.
         </audio>
       </div>
@@ -43,7 +43,7 @@ export function FileViewer({ content, fileName, fileType }) {
   if (fileType?.startsWith('video/')) {
     return (
       <div className="mt-2">
-        <video controls src={content} className="max-w-full max-h-64 rounded-lg">
+        <video controls src={content} className="max-w-full max-h-64 rounded-lg" aria-label={`Video file: ${fileName}`}>
           Your browser does not support video playback.
         </video>
       </div>
@@ -58,7 +58,7 @@ export function FileViewer({ content, fileName, fileType }) {
         download={fileName}
         className="inline-flex items-center gap-2 px-4 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg text-white font-bold"
       >
-        <FileText className="w-5 h-5" /> Download: {fileName}
+        <FileText className="w-5 h-5" aria-hidden="true" /> Download: {fileName}
       </a>
     </div>
   );
