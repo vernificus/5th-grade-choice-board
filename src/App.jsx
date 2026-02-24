@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Gamepad2, Mic, BarChart3, Palette, CheckCircle2, Trophy, Rocket, Info, X, PlayCircle,
   Star, Gift, Swords, Users, User, Sparkles, Zap, Shield, Crown, Target,
-  Upload, Link, Clock, CheckCheck, XCircle, ClipboardList, Lock, Eye, FileText, LogOut
+  Upload, Link, Link2, Clock, CheckCheck, XCircle, ClipboardList, Lock, Eye, FileText, LogOut,
+  MessageSquare
 } from 'lucide-react';
 import { useGameState } from './hooks/useGameState';
 import {
@@ -334,6 +335,7 @@ function BossChallenge({ completedBosses, onSubmit, hasPendingSubmission }) {
 function SubmissionForm({ activityTitle, onSubmit, onCancel }) {
   const [submissionType, setSubmissionType] = useState('link');
   const [linkValue, setLinkValue] = useState('');
+  const [textValue, setTextValue] = useState('');
   const [fileName, setFileName] = useState('');
   const [fileData, setFileData] = useState(null);
   const [fileType, setFileType] = useState('');
@@ -376,15 +378,30 @@ function SubmissionForm({ activityTitle, onSubmit, onCancel }) {
       alert('Please select a file');
       return;
     }
+    if (submissionType === 'text' && !textValue.trim()) {
+      alert('Please type your response');
+      return;
+    }
+
+    let content;
+    if (submissionType === 'link') content = linkValue.trim();
+    else if (submissionType === 'file') content = fileData;
+    else content = textValue.trim();
 
     onSubmit({
       type: submissionType,
-      content: submissionType === 'link' ? linkValue.trim() : fileData,
+      content,
       fileName: submissionType === 'file' ? fileName : null,
       fileType: submissionType === 'file' ? fileType : null,
       note: note.trim()
     });
   };
+
+  const typeButtons = [
+    { type: 'link', icon: Link, label: 'Paste Link' },
+    { type: 'file', icon: Upload, label: 'Upload File' },
+    { type: 'text', icon: MessageSquare, label: 'Type Response' },
+  ];
 
   return (
     <div>
@@ -392,23 +409,19 @@ function SubmissionForm({ activityTitle, onSubmit, onCancel }) {
       <p className="text-slate-400 text-sm text-center mb-6">for: {activityTitle}</p>
 
       <div className="flex gap-2 mb-6" role="group" aria-label="Submission type">
-        <button
-          onClick={() => setSubmissionType('link')}
-          className={`flex-1 py-3 rounded-lg font-bold flex items-center justify-center gap-2 ${submissionType === 'link' ? 'bg-yellow-500 text-slate-900' : 'bg-slate-700 text-slate-300'}`}
-          aria-pressed={submissionType === 'link'}
-        >
-          <Link className="w-5 h-5" aria-hidden="true" /> Paste Link
-        </button>
-        <button
-          onClick={() => setSubmissionType('file')}
-          className={`flex-1 py-3 rounded-lg font-bold flex items-center justify-center gap-2 ${submissionType === 'file' ? 'bg-yellow-500 text-slate-900' : 'bg-slate-700 text-slate-300'}`}
-          aria-pressed={submissionType === 'file'}
-        >
-          <Upload className="w-5 h-5" aria-hidden="true" /> Upload File
-        </button>
+        {typeButtons.map(({ type, icon: Icon, label }) => (
+          <button
+            key={type}
+            onClick={() => setSubmissionType(type)}
+            className={`flex-1 py-3 rounded-lg font-bold flex items-center justify-center gap-2 text-sm ${submissionType === type ? 'bg-yellow-500 text-slate-900' : 'bg-slate-700 text-slate-300'}`}
+            aria-pressed={submissionType === type}
+          >
+            <Icon className="w-5 h-5" aria-hidden="true" /> {label}
+          </button>
+        ))}
       </div>
 
-      {submissionType === 'link' ? (
+      {submissionType === 'link' && (
         <div className="mb-4">
           <label htmlFor="submission-link" className="block text-sm font-bold text-slate-300 mb-2">Link to your work</label>
           <input
@@ -422,7 +435,9 @@ function SubmissionForm({ activityTitle, onSubmit, onCancel }) {
           />
           <p id="link-hint" className="text-xs text-slate-500 mt-2">Paste a link to Google Docs, YouTube, Vocaroo, or any other website</p>
         </div>
-      ) : (
+      )}
+
+      {submissionType === 'file' && (
         <div className="mb-4">
           <label htmlFor="submission-file" className="block text-sm font-bold text-slate-300 mb-2">Upload your file</label>
           <input
@@ -453,17 +468,36 @@ function SubmissionForm({ activityTitle, onSubmit, onCancel }) {
         </div>
       )}
 
-      <div className="mb-6">
-        <label htmlFor="submission-note" className="block text-sm font-bold text-slate-300 mb-2">Note to teacher (optional)</label>
-        <textarea
-          id="submission-note"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="Anything you want your teacher to know..."
-          rows={2}
-          className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-yellow-500 focus:outline-none resize-none"
-        />
-      </div>
+      {submissionType === 'text' && (
+        <div className="mb-4">
+          <label htmlFor="submission-text" className="block text-sm font-bold text-slate-300 mb-2">Your response</label>
+          <textarea
+            id="submission-text"
+            value={textValue}
+            onChange={(e) => setTextValue(e.target.value)}
+            placeholder="Type your answer or describe what you did..."
+            rows={5}
+            className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-yellow-500 focus:outline-none resize-y min-h-[120px]"
+            aria-describedby="text-hint"
+          />
+          <p id="text-hint" className="text-xs text-slate-500 mt-2">Write your answer, explain your work, or describe what you created</p>
+        </div>
+      )}
+
+      {/* Note field - shown for link and file types only (text type IS the response) */}
+      {submissionType !== 'text' && (
+        <div className="mb-6">
+          <label htmlFor="submission-note" className="block text-sm font-bold text-slate-300 mb-2">Note to teacher (optional)</label>
+          <textarea
+            id="submission-note"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Anything you want your teacher to know..."
+            rows={2}
+            className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-yellow-500 focus:outline-none resize-none"
+          />
+        </div>
+      )}
 
       <div className="flex gap-3">
         <button
@@ -794,6 +828,60 @@ function ActivityCard({ path, selectedOption, onSelect, completedActivities, pen
 }
 
 // ============== INSTRUCTION MODAL ==============
+// Render text with basic markdown-style formatting: **bold** and *italic*
+function renderFormattedText(text) {
+  if (!text) return null;
+  const parts = [];
+  const regex = /(\*\*(.+?)\*\*|\*(.+?)\*)/g;
+  let lastIndex = 0;
+  let key = 0;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(<span key={key++}>{text.slice(lastIndex, match.index)}</span>);
+    }
+    if (match[2]) {
+      parts.push(<strong key={key++} className="font-bold text-white">{match[2]}</strong>);
+    } else if (match[3]) {
+      parts.push(<em key={key++} className="italic text-slate-200">{match[3]}</em>);
+    }
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(<span key={key++}>{text.slice(lastIndex)}</span>);
+  }
+
+  return parts.length > 0 ? parts : text;
+}
+
+// Render a single step, handling both old string format and new object format
+function renderStep(step, idx) {
+  // Backward compat: old steps are plain strings
+  const stepObj = typeof step === 'string' ? { text: step } : step;
+
+  return (
+    <li key={idx} className="flex gap-3 text-slate-300">
+      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-slate-700 text-yellow-500 flex items-center justify-center text-xs font-bold border border-slate-600">{idx + 1}</span>
+      <div className="text-sm leading-relaxed">
+        <span>{renderFormattedText(stepObj.text)}</span>
+        {stepObj.link && (
+          <a
+            href={stepObj.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 ml-1 text-blue-400 hover:text-blue-300 underline transition-colors"
+          >
+            <Link2 className="w-3 h-3" aria-hidden="true" />
+            {stepObj.linkText || stepObj.link}
+          </a>
+        )}
+      </div>
+    </li>
+  );
+}
+
 function InstructionModal({ activity, path, onSubmit, onClose, dailyQuest, dailyCompleted, isPending, isCompleted }) {
   const [showSubmitForm, setShowSubmitForm] = useState(false);
 
@@ -842,22 +930,19 @@ function InstructionModal({ activity, path, onSubmit, onClose, dailyQuest, daily
             <div className="space-y-4 mb-8">
               <h4 className="font-bold text-slate-300 uppercase text-xs tracking-widest">How to Play:</h4>
               <ol className="space-y-3">
-                {activity.steps.map((step, idx) => (
-                  <li key={idx} className="flex gap-3 text-slate-300">
-                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-slate-700 text-yellow-500 flex items-center justify-center text-xs font-bold border border-slate-600">{idx + 1}</span>
-                    <span className="text-sm leading-relaxed">{step}</span>
-                  </li>
-                ))}
+                {activity.steps.map((step, idx) => renderStep(step, idx))}
               </ol>
             </div>
 
-            <div className="bg-blue-600/20 border border-blue-500/30 p-4 rounded-xl mb-6">
-              <div className="flex items-center gap-2 mb-1 text-blue-400">
-                <Trophy className="w-4 h-4" />
-                <span className="text-xs font-black uppercase tracking-widest">Pro Tip</span>
+            {activity.proTip && (
+              <div className="bg-blue-600/20 border border-blue-500/30 p-4 rounded-xl mb-6">
+                <div className="flex items-center gap-2 mb-1 text-blue-400">
+                  <Trophy className="w-4 h-4" />
+                  <span className="text-xs font-black uppercase tracking-widest">Pro Tip</span>
+                </div>
+                <p className="text-sm text-blue-100">{renderFormattedText(activity.proTip)}</p>
               </div>
-              <p className="text-sm text-blue-100">{activity.proTip}</p>
-            </div>
+            )}
 
             {isCompleted ? (
               <div className="text-center text-green-400 font-bold py-3" role="status">
