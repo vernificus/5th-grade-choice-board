@@ -48,39 +48,41 @@ export const GUILDS = [
 ];
 
 // Avatar Items
+// Rendering is handled by the Avatar3D component based on item IDs.
+// IDs are kept stable for backward compatibility with existing save data.
 export const AVATAR_ITEMS = {
   colors: [
-    { id: 'default', name: 'Classic Blue', value: 'bg-blue-500', cost: 0 },
-    { id: 'green', name: 'Forest Green', value: 'bg-green-500', cost: 50 },
-    { id: 'purple', name: 'Royal Purple', value: 'bg-purple-500', cost: 50 },
-    { id: 'red', name: 'Fire Red', value: 'bg-red-500', cost: 75 },
-    { id: 'yellow', name: 'Golden', value: 'bg-yellow-500', cost: 100 },
-    { id: 'pink', name: 'Bubblegum', value: 'bg-pink-500', cost: 75 },
-    { id: 'rainbow', name: 'Rainbow', value: 'bg-gradient-to-r from-red-500 via-yellow-500 to-blue-500', cost: 200 },
+    { id: 'default', name: 'Ocean Blue', cost: 0 },
+    { id: 'green', name: 'Forest Green', cost: 50 },
+    { id: 'purple', name: 'Royal Purple', cost: 50 },
+    { id: 'red', name: 'Fire Red', cost: 75 },
+    { id: 'yellow', name: 'Golden', cost: 100 },
+    { id: 'pink', name: 'Bubblegum', cost: 75 },
+    { id: 'rainbow', name: 'Rainbow', cost: 200 },
   ],
   hats: [
-    { id: 'none', name: 'No Hat', emoji: '', cost: 0 },
-    { id: 'cap', name: 'Baseball Cap', emoji: '🧢', cost: 50 },
-    { id: 'crown', name: 'Crown', emoji: '👑', cost: 150 },
-    { id: 'wizard', name: 'Wizard Hat', emoji: '🎩', cost: 100 },
-    { id: 'party', name: 'Party Hat', emoji: '🎉', cost: 75 },
-    { id: 'headphones', name: 'Headphones', emoji: '🎧', cost: 100 },
+    { id: 'none', name: 'No Hat', cost: 0 },
+    { id: 'cap', name: 'Baseball Cap', cost: 50 },
+    { id: 'crown', name: 'Royal Crown', cost: 150 },
+    { id: 'wizard', name: 'Wizard Hat', cost: 100 },
+    { id: 'party', name: 'Party Hat', cost: 75 },
+    { id: 'headphones', name: 'Headphones', cost: 100 },
   ],
   accessories: [
-    { id: 'none', name: 'None', emoji: '', cost: 0 },
-    { id: 'glasses', name: 'Cool Glasses', emoji: '😎', cost: 50 },
-    { id: 'star', name: 'Star Badge', emoji: '⭐', cost: 75 },
-    { id: 'fire', name: 'Fire Aura', emoji: '🔥', cost: 100 },
-    { id: 'sparkle', name: 'Sparkles', emoji: '✨', cost: 125 },
-    { id: 'lightning', name: 'Lightning', emoji: '⚡', cost: 150 },
+    { id: 'none', name: 'None', cost: 0 },
+    { id: 'glasses', name: 'Cool Shades', cost: 50 },
+    { id: 'star', name: 'Star Badge', cost: 75 },
+    { id: 'fire', name: 'Fire Aura', cost: 100 },
+    { id: 'sparkle', name: 'Sparkles', cost: 125 },
+    { id: 'lightning', name: 'Lightning Bolt', cost: 150 },
   ],
   faces: [
-    { id: 'happy', name: 'Happy', emoji: '😊', cost: 0 },
-    { id: 'cool', name: 'Cool', emoji: '😎', cost: 25 },
-    { id: 'excited', name: 'Excited', emoji: '🤩', cost: 50 },
-    { id: 'determined', name: 'Determined', emoji: '😤', cost: 50 },
-    { id: 'smart', name: 'Smart', emoji: '🧐', cost: 75 },
-    { id: 'ninja', name: 'Ninja', emoji: '🥷', cost: 100 },
+    { id: 'happy', name: 'Happy', cost: 0 },
+    { id: 'cool', name: 'Cool', cost: 25 },
+    { id: 'excited', name: 'Excited', cost: 50 },
+    { id: 'determined', name: 'Determined', cost: 50 },
+    { id: 'smart', name: 'Smart', cost: 75 },
+    { id: 'ninja', name: 'Ninja', cost: 100 },
   ],
 };
 
