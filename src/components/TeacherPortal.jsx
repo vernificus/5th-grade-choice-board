@@ -4,8 +4,10 @@ import { realBackend as backend } from '../services/realBackend';
 import {
   Users, Plus, LogOut, BookOpen, ClipboardList, CheckCircle2,
   XCircle, Clock, ChevronRight, GraduationCap, Copy, Trash2, Edit, RefreshCw, RotateCcw, Link, Save, Gift,
-  Share2, UserPlus, X, Mail, MessageSquare
+  Share2, UserPlus, X, Mail, MessageSquare, Sparkles, Star, Trophy
 } from 'lucide-react';
+import { LEVELS, ACHIEVEMENTS } from '../data/gameData';
+import Avatar3D from './Avatar3D';
 import { FileViewer } from './FileViewer';
 import ActivityEditor from './ActivityEditor';
 import RosterManager from './RosterManager';
@@ -28,6 +30,12 @@ export default function TeacherPortal() {
   const [coTeachers, setCoTeachers] = useState([]);
   const [coTeacherEmail, setCoTeacherEmail] = useState('');
   const [addingCoTeacher, setAddingCoTeacher] = useState(false);
+
+  // Spotlight state
+  const [spotlight, setSpotlight] = useState(null);
+  const [spotlightMessage, setSpotlightMessage] = useState('');
+  const [spotlightCategory, setSpotlightCategory] = useState('star_student');
+  const [savingSpotlight, setSavingSpotlight] = useState(false);
 
   useEffect(() => {
     loadClasses();
@@ -133,6 +141,52 @@ export default function TeacherPortal() {
       setCoTeachers(prev => prev.filter(t => t.id !== coTeacherId));
     } catch (error) {
       alert(error.message);
+    }
+  };
+
+  // Load spotlight when class changes
+  useEffect(() => {
+    if (selectedClass) {
+      setSpotlight(selectedClass.spotlight || null);
+    } else {
+      setSpotlight(null);
+    }
+  }, [selectedClass]);
+
+  const handleSetSpotlight = async (student) => {
+    if (!selectedClass) return;
+    setSavingSpotlight(true);
+    try {
+      const spotlightData = {
+        studentId: student.id,
+        studentName: student.name,
+        avatar: student.avatar || { color: 'default', hat: 'none', accessory: 'none', face: 'happy' },
+        xp: student.xp || 0,
+        message: spotlightMessage || 'Keep up the great work!',
+        category: spotlightCategory,
+        setAt: new Date().toISOString(),
+        setBy: user.name,
+      };
+      await backend.setStudentSpotlight(selectedClass.id, spotlightData);
+      setSpotlight(spotlightData);
+      setSelectedClass(prev => ({ ...prev, spotlight: spotlightData }));
+      setSpotlightMessage('');
+      alert(`${student.name} is now the class spotlight!`);
+    } catch (error) {
+      alert('Error setting spotlight: ' + error.message);
+    }
+    setSavingSpotlight(false);
+  };
+
+  const handleClearSpotlight = async () => {
+    if (!selectedClass) return;
+    if (!window.confirm('Remove the current spotlight?')) return;
+    try {
+      await backend.clearStudentSpotlight(selectedClass.id);
+      setSpotlight(null);
+      setSelectedClass(prev => ({ ...prev, spotlight: null }));
+    } catch (error) {
+      alert('Error clearing spotlight: ' + error.message);
     }
   };
 
@@ -389,6 +443,16 @@ export default function TeacherPortal() {
                   </button>
                   <button
                     role="tab"
+                    aria-selected={activeTab === 'spotlight'}
+                    aria-controls="tabpanel-spotlight"
+                    id="tab-spotlight"
+                    onClick={() => setActiveTab('spotlight')}
+                    className={`pb-4 px-2 font-bold ${activeTab === 'spotlight' ? 'text-yellow-400 border-b-2 border-yellow-400' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    <span className="flex items-center gap-1"><Sparkles className="w-4 h-4" aria-hidden="true" /> Spotlight</span>
+                  </button>
+                  <button
+                    role="tab"
                     aria-selected={activeTab === 'sharing'}
                     aria-controls="tabpanel-sharing"
                     id="tab-sharing"
@@ -550,6 +614,145 @@ export default function TeacherPortal() {
                         ) : (
                           <p className="text-slate-500 text-sm italic">No co-teachers added yet.</p>
                         )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'spotlight' && (
+                  <div role="tabpanel" id="tabpanel-spotlight" aria-labelledby="tab-spotlight">
+                    <div className="space-y-6">
+                      {/* Current Spotlight */}
+                      <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                          <Sparkles className="w-5 h-5 text-yellow-400" aria-hidden="true" /> Current Spotlight
+                        </h3>
+                        {spotlight ? (
+                          <div className="bg-gradient-to-r from-yellow-900/30 to-amber-900/30 border-2 border-yellow-500/50 rounded-xl p-6">
+                            <div className="flex items-center gap-4">
+                              <Avatar3D avatar={spotlight.avatar} level={(() => {
+                                let lvl = 1;
+                                for (const l of LEVELS) { if (spotlight.xp >= l.xpRequired) lvl = l.level; else break; }
+                                return lvl;
+                              })()} size="md" />
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-lg">
+                                    {spotlight.category === 'star_student' && '⭐'}
+                                    {spotlight.category === 'most_improved' && '📈'}
+                                    {spotlight.category === 'team_player' && '🤝'}
+                                    {spotlight.category === 'creative_genius' && '🎨'}
+                                  </span>
+                                  <span className="text-xs font-bold uppercase tracking-widest text-yellow-400">
+                                    {spotlight.category === 'star_student' && 'Star Student'}
+                                    {spotlight.category === 'most_improved' && 'Most Improved'}
+                                    {spotlight.category === 'team_player' && 'Team Player'}
+                                    {spotlight.category === 'creative_genius' && 'Creative Genius'}
+                                  </span>
+                                </div>
+                                <p className="text-2xl font-black text-white">{spotlight.studentName}</p>
+                                <p className="text-slate-300 italic mt-1">"{spotlight.message}"</p>
+                                <p className="text-xs text-slate-500 mt-2">Set by {spotlight.setBy} on {new Date(spotlight.setAt).toLocaleDateString()}</p>
+                              </div>
+                              <button
+                                onClick={handleClearSpotlight}
+                                className="p-2 text-slate-400 hover:text-red-400 transition-colors"
+                                aria-label="Remove spotlight"
+                              >
+                                <X className="w-5 h-5" aria-hidden="true" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 text-slate-500 border-2 border-dashed border-slate-700 rounded-xl">
+                            <Sparkles className="w-12 h-12 mx-auto mb-2 opacity-20" aria-hidden="true" />
+                            No student spotlight set. Select a student below to highlight them for the class!
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Set Spotlight */}
+                      <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                          <Star className="w-5 h-5 text-yellow-400" aria-hidden="true" /> Highlight a Student
+                        </h3>
+
+                        {/* Category Selection */}
+                        <div className="mb-4">
+                          <label className="block text-xs text-slate-400 font-bold uppercase mb-2">Spotlight Category</label>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            {[
+                              { id: 'star_student', label: 'Star Student', emoji: '⭐' },
+                              { id: 'most_improved', label: 'Most Improved', emoji: '📈' },
+                              { id: 'team_player', label: 'Team Player', emoji: '🤝' },
+                              { id: 'creative_genius', label: 'Creative Genius', emoji: '🎨' },
+                            ].map(cat => (
+                              <button
+                                key={cat.id}
+                                onClick={() => setSpotlightCategory(cat.id)}
+                                className={`p-2 rounded-lg text-sm font-bold transition-colors ${
+                                  spotlightCategory === cat.id
+                                    ? 'bg-yellow-500 text-slate-900'
+                                    : 'bg-slate-700 text-slate-400 hover:text-white'
+                                }`}
+                              >
+                                {cat.emoji} {cat.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Custom Message */}
+                        <div className="mb-4">
+                          <label htmlFor="spotlight-message" className="block text-xs text-slate-400 font-bold uppercase mb-1">Custom Message</label>
+                          <input
+                            id="spotlight-message"
+                            type="text"
+                            value={spotlightMessage}
+                            onChange={e => setSpotlightMessage(e.target.value)}
+                            placeholder="Keep up the great work!"
+                            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:border-yellow-500 outline-none"
+                            maxLength={100}
+                          />
+                        </div>
+
+                        {/* Student List */}
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                          {students.length === 0 ? (
+                            <p className="text-slate-500 text-center py-4">No students in this class.</p>
+                          ) : (
+                            students
+                              .sort((a, b) => (b.xp || 0) - (a.xp || 0))
+                              .map(student => {
+                                const level = LEVELS.reduce((acc, l) => (student.xp || 0) >= l.xpRequired ? l : acc, LEVELS[0]);
+                                return (
+                                  <div
+                                    key={student.id}
+                                    className="flex items-center gap-3 p-3 bg-slate-700/50 rounded-lg hover:bg-slate-700 transition-colors"
+                                  >
+                                    <Avatar3D avatar={student.avatar || { color: 'default', hat: 'none', accessory: 'none', face: 'happy' }} level={level.level} size="sm" />
+                                    <div className="flex-1">
+                                      <p className="font-bold text-white text-sm">{student.name}</p>
+                                      <p className={`text-xs ${level.color}`}>Lv.{level.level} {level.title} - {student.xp || 0} XP</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-slate-400">
+                                        {(student.unlockedAchievements || []).length} <Trophy className="w-3 h-3 inline" aria-hidden="true" />
+                                      </span>
+                                      <button
+                                        onClick={() => handleSetSpotlight(student)}
+                                        disabled={savingSpotlight}
+                                        className="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-500 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50"
+                                      >
+                                        <Sparkles className="w-3 h-3 inline mr-1" aria-hidden="true" />
+                                        Spotlight
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>

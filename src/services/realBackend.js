@@ -566,5 +566,82 @@ export const realBackend = {
   async studentSelfSignup(classId, name, password) {
     // Same as createStudent but intended for the student-facing signup flow
     return this.createStudent(classId, name, password);
-  }
+  },
+
+  // ================= LEADERBOARD =================
+  async getClassLeaderboard(classId) {
+    try {
+      const students = await this.getStudents(classId);
+      return students
+        .map(s => ({
+          id: s.id,
+          name: s.name,
+          xp: s.xp || 0,
+          avatar: s.avatar || { color: 'default', hat: 'none', accessory: 'none', face: 'happy' },
+          unlockedAchievements: s.unlockedAchievements || [],
+          guild: s.guild || null,
+          guildXpContributed: s.guildXpContributed || 0,
+          totalActivitiesCompleted: s.totalActivitiesCompleted || 0,
+          currentStreak: s.currentStreak || 0,
+        }))
+        .sort((a, b) => b.xp - a.xp);
+    } catch (error) {
+      console.error("Error getting leaderboard:", error);
+      return [];
+    }
+  },
+
+  // ================= STUDENT SPOTLIGHT =================
+  async setStudentSpotlight(classId, spotlightData) {
+    try {
+      const classRef = doc(db, "classes", classId);
+      await updateDoc(classRef, { spotlight: spotlightData });
+      return true;
+    } catch (error) {
+      console.error("Error setting spotlight:", error);
+      throw error;
+    }
+  },
+
+  async clearStudentSpotlight(classId) {
+    try {
+      const classRef = doc(db, "classes", classId);
+      await updateDoc(classRef, { spotlight: null });
+      return true;
+    } catch (error) {
+      console.error("Error clearing spotlight:", error);
+      throw error;
+    }
+  },
+
+  // ================= GUILD CHALLENGES =================
+  async getGuildLeaderboard(classId) {
+    try {
+      const students = await this.getStudents(classId);
+      const guildStats = {};
+      students.forEach(s => {
+        if (s.guild) {
+          if (!guildStats[s.guild]) {
+            guildStats[s.guild] = { totalXp: 0, memberCount: 0, members: [] };
+          }
+          guildStats[s.guild].totalXp += (s.guildXpContributed || 0);
+          guildStats[s.guild].memberCount += 1;
+          guildStats[s.guild].members.push({
+            id: s.id,
+            name: s.name,
+            xp: s.guildXpContributed || 0,
+            avatar: s.avatar || { color: 'default', hat: 'none', accessory: 'none', face: 'happy' },
+          });
+        }
+      });
+      // Sort members within each guild
+      Object.values(guildStats).forEach(g => {
+        g.members.sort((a, b) => b.xp - a.xp);
+      });
+      return guildStats;
+    } catch (error) {
+      console.error("Error getting guild leaderboard:", error);
+      return {};
+    }
+  },
 };
