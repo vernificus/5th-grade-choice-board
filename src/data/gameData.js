@@ -48,6 +48,14 @@ export const GUILDS = [
   { id: 'sharks', name: 'Ocean Sharks', color: 'bg-blue-600', emoji: '🦈', motto: 'Dive deep into learning!' },
 ];
 
+// Guild Challenges (weekly goals for entire guild)
+export const GUILD_CHALLENGES = [
+  { id: 'gc1', title: 'Knowledge Blitz', desc: 'Guild members complete 10 activities total', target: 10, type: 'activities', reward: 100, emoji: '⚔️' },
+  { id: 'gc2', title: 'Streak Squad', desc: '3 guild members maintain a 3+ day streak', target: 3, type: 'streakers', reward: 150, emoji: '🔥' },
+  { id: 'gc3', title: 'Path Masters', desc: 'Guild members complete activities from all 3 paths', target: 3, type: 'paths', reward: 125, emoji: '🗺️' },
+  { id: 'gc4', title: 'Boss Rush', desc: '2 guild members defeat the weekly boss', target: 2, type: 'bosses', reward: 200, emoji: '👹' },
+];
+
 // Avatar Items
 // Rendering is handled by the Avatar3D component based on item IDs.
 // IDs are kept stable for backward compatibility with existing save data.

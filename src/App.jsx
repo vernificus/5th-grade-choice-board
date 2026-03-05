@@ -7,13 +7,15 @@ import {
 } from 'lucide-react';
 import { useGameState } from './hooks/useGameState';
 import {
-  LEVELS, ACHIEVEMENTS, GUILDS, AVATAR_ITEMS, BOSS_CHALLENGES, LEARNING_PATHS
+  LEVELS, ACHIEVEMENTS, GUILDS, AVATAR_ITEMS, BOSS_CHALLENGES, LEARNING_PATHS, GUILD_CHALLENGES
 } from './data/gameData';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import LoginScreen from './components/LoginScreen';
 import TeacherPortal from './components/TeacherPortal';
 import { FileViewer } from './components/FileViewer';
 import Avatar3D, { AvatarColorSwatch, AvatarPreviewHead } from './components/Avatar3D';
+import Leaderboard from './components/Leaderboard';
+import { realBackend as backend } from './services/realBackend';
 
 const IconMap = { Mic, BarChart3, Palette };
 
@@ -143,8 +145,23 @@ function DailyQuestBanner({ quest, completed }) {
 }
 
 // ============== GUILD PANEL ==============
-function GuildPanel({ currentGuild, onJoinGuild, guildXp }) {
+function GuildPanel({ currentGuild, onJoinGuild, guildXp, classId, gameState }) {
   const [showGuilds, setShowGuilds] = useState(false);
+  const [showGuildDetails, setShowGuildDetails] = useState(false);
+  const [guildLeaderboard, setGuildLeaderboard] = useState({});
+  const [loadingGuild, setLoadingGuild] = useState(false);
+
+  const loadGuildData = async () => {
+    if (!classId) return;
+    setLoadingGuild(true);
+    try {
+      const data = await backend.getGuildLeaderboard(classId);
+      setGuildLeaderboard(data);
+    } catch (e) {
+      console.error("Failed to load guild data", e);
+    }
+    setLoadingGuild(false);
+  };
 
   if (!currentGuild) {
     return (
@@ -188,23 +205,158 @@ function GuildPanel({ currentGuild, onJoinGuild, guildXp }) {
   }
 
   const guild = GUILDS.find(g => g.id === currentGuild);
+  const myGuildData = guildLeaderboard[currentGuild];
+
+  // Weekly guild challenge (rotates like bosses)
+  const today = new Date();
+  const weekOfYear = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / 604800000);
+  const currentChallenge = GUILD_CHALLENGES[weekOfYear % GUILD_CHALLENGES.length];
 
   return (
-    <section className={`mb-6 p-4 rounded-xl ${guild.color} bg-opacity-30 border border-opacity-50`} aria-label={`Your guild: ${guild.name}`}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="text-3xl" aria-hidden="true">{guild.emoji}</span>
-          <div>
-            <p className="font-black text-white">{guild.name}</p>
-            <p className="text-xs opacity-80">{guild.motto}</p>
+    <>
+      <section className={`mb-6 p-4 rounded-xl ${guild.color} bg-opacity-30 border border-opacity-50`} aria-label={`Your guild: ${guild.name}`}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl" aria-hidden="true">{guild.emoji}</span>
+            <div>
+              <p className="font-black text-white">{guild.name}</p>
+              <p className="text-xs opacity-80">{guild.motto}</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-slate-400">Your Contribution</p>
+            <p className="font-bold text-yellow-400">{guildXp} XP</p>
           </div>
         </div>
-        <div className="text-right">
-          <p className="text-xs text-slate-400">Your Contribution</p>
-          <p className="font-bold text-yellow-400">{guildXp} XP</p>
+
+        {/* Guild Challenge Preview */}
+        <div className="bg-black/20 rounded-lg p-3 mb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-lg" aria-hidden="true">{currentChallenge.emoji}</span>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Guild Challenge</p>
+                <p className="text-sm font-bold text-white">{currentChallenge.title}</p>
+              </div>
+            </div>
+            <span className="text-xs text-yellow-400 font-bold">+{currentChallenge.reward} XP</span>
+          </div>
+          <p className="text-xs text-slate-400 mt-1">{currentChallenge.desc}</p>
         </div>
-      </div>
-    </section>
+
+        <button
+          onClick={() => { setShowGuildDetails(true); loadGuildData(); }}
+          className="w-full py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-bold transition-colors"
+        >
+          View Guild Hall
+        </button>
+      </section>
+
+      {/* Guild Details Modal */}
+      {showGuildDetails && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="guild-details-title"
+          onClick={() => setShowGuildDetails(false)}
+          onKeyDown={(e) => e.key === 'Escape' && setShowGuildDetails(false)}
+        >
+          <div className="bg-slate-800 border-2 border-yellow-500 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <span className="text-4xl" aria-hidden="true">{guild.emoji}</span>
+                <div>
+                  <h3 id="guild-details-title" className="text-2xl font-black uppercase italic">{guild.name}</h3>
+                  <p className="text-slate-400 text-sm">{guild.motto}</p>
+                </div>
+              </div>
+              <button onClick={() => setShowGuildDetails(false)} className="text-slate-400 hover:text-white" aria-label="Close guild hall">
+                <X className="w-6 h-6" aria-hidden="true" />
+              </button>
+            </div>
+
+            {/* Guild vs Guild Standings */}
+            <div className="mb-6">
+              <h4 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Guild Standings</h4>
+              <div className="grid grid-cols-2 gap-3">
+                {GUILDS.map(g => {
+                  const stats = guildLeaderboard[g.id];
+                  const isMyGuild = g.id === currentGuild;
+                  return (
+                    <div
+                      key={g.id}
+                      className={`p-3 rounded-xl ${isMyGuild ? g.color + ' bg-opacity-40 border-2 border-white/20' : 'bg-slate-700/50'}`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xl" aria-hidden="true">{g.emoji}</span>
+                        <span className="font-bold text-sm text-white">{g.name}</span>
+                      </div>
+                      {loadingGuild ? (
+                        <p className="text-xs text-slate-500">Loading...</p>
+                      ) : stats ? (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-400">{stats.memberCount} member{stats.memberCount !== 1 ? 's' : ''}</span>
+                          <span className="text-yellow-400 font-bold">{stats.totalXp} XP</span>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-500">No members yet</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Weekly Guild Challenge */}
+            <div className="mb-6 bg-gradient-to-r from-purple-900/30 to-blue-900/30 border border-purple-500/30 rounded-xl p-4">
+              <h4 className="text-xs font-bold uppercase tracking-widest text-purple-300 mb-2">Weekly Guild Challenge</h4>
+              <div className="flex items-center gap-3">
+                <span className="text-3xl" aria-hidden="true">{currentChallenge.emoji}</span>
+                <div className="flex-1">
+                  <p className="font-bold text-white">{currentChallenge.title}</p>
+                  <p className="text-sm text-slate-400">{currentChallenge.desc}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-yellow-400 font-bold">+{currentChallenge.reward}</p>
+                  <p className="text-xs text-slate-500">XP each</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Guild Members */}
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">
+                Guild Members {myGuildData ? `(${myGuildData.memberCount})` : ''}
+              </h4>
+              {loadingGuild ? (
+                <p className="text-slate-500 text-center py-4">Loading members...</p>
+              ) : myGuildData && myGuildData.members.length > 0 ? (
+                <div className="space-y-2">
+                  {myGuildData.members.map((member, idx) => (
+                    <div
+                      key={member.id}
+                      className={`flex items-center gap-3 p-3 rounded-lg ${
+                        member.id === gameState?.id ? 'bg-yellow-500/10 border border-yellow-500/30' : 'bg-slate-700/50'
+                      }`}
+                    >
+                      <span className="text-sm font-bold text-slate-500 w-6 text-center">#{idx + 1}</span>
+                      <Avatar3D avatar={member.avatar} level={1} size="sm" />
+                      <div className="flex-1">
+                        <p className="font-bold text-white text-sm">{member.name}</p>
+                      </div>
+                      <span className="text-yellow-400 font-bold text-sm">{member.xp} XP</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-slate-500 text-center py-4">No members in your guild yet.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -1049,6 +1201,8 @@ function GameContent() {
     setShowMysteryReward,
   } = useGameState();
 
+  const { user } = useAuth();
+
   const [selectedPath, setSelectedPath] = useState({ path1: null, path2: null, path3: null });
   const [activeInstruction, setActiveInstruction] = useState(null);
   const [activePath, setActivePath] = useState(null);
@@ -1056,8 +1210,21 @@ function GameContent() {
   const [showAvatarBuilder, setShowAvatarBuilder] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [showMySubmissions, setShowMySubmissions] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [classSpotlight, setClassSpotlight] = useState(null);
 
   const dailyQuest = getDailyQuest();
+
+  // Load class spotlight
+  useEffect(() => {
+    if (user && user.classId) {
+      backend.getClass(user.classId).then(cls => {
+        if (cls && cls.spotlight) {
+          setClassSpotlight(cls.spotlight);
+        }
+      });
+    }
+  }, [user]);
 
   // Helper to extract pending status safely
   const pendingActivities = submissions ? submissions.filter(s => s.status === 'pending' && !s.isBoss).map(s => s.activityId) : [];
@@ -1120,10 +1287,52 @@ function GameContent() {
               {gameState.unlockedAchievements.length}/{ACHIEVEMENTS.length}
             </span>
           </button>
+          <button
+            onClick={() => setShowLeaderboard(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg hover:border-blue-500 transition-colors"
+            aria-label="View class leaderboard"
+          >
+            <Crown className="w-5 h-5 text-blue-400" aria-hidden="true" />
+            <span className="font-bold">Leaderboard</span>
+          </button>
         </div>
 
+        {/* Student Spotlight Banner */}
+        {classSpotlight && (
+          <section className="mb-6 p-4 rounded-xl bg-gradient-to-r from-yellow-900/40 to-amber-900/40 border-2 border-yellow-500/50" aria-label="Student Spotlight">
+            <div className="flex items-center gap-4">
+              <div className="flex-shrink-0">
+                <Avatar3D avatar={classSpotlight.avatar} level={(() => {
+                  let lvl = 1;
+                  for (const l of LEVELS) { if (classSpotlight.xp >= l.xpRequired) lvl = l.level; else break; }
+                  return lvl;
+                })()} size="sm" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <Sparkles className="w-4 h-4 text-yellow-400" aria-hidden="true" />
+                  <span className="text-xs font-bold uppercase tracking-widest text-yellow-400">
+                    {classSpotlight.category === 'star_student' && 'Star Student'}
+                    {classSpotlight.category === 'most_improved' && 'Most Improved'}
+                    {classSpotlight.category === 'team_player' && 'Team Player'}
+                    {classSpotlight.category === 'creative_genius' && 'Creative Genius'}
+                  </span>
+                </div>
+                <p className="font-black text-white text-lg">{classSpotlight.studentName}</p>
+                <p className="text-sm text-slate-300 italic">"{classSpotlight.message}"</p>
+              </div>
+              <div className="text-3xl flex-shrink-0" aria-hidden="true">
+                {classSpotlight.category === 'star_student' && '⭐'}
+                {classSpotlight.category === 'most_improved' && '📈'}
+                {classSpotlight.category === 'team_player' && '🤝'}
+                {classSpotlight.category === 'creative_genius' && '🎨'}
+              </div>
+            </div>
+          </section>
+        )}
+
         <DailyQuestBanner quest={dailyQuest} completed={gameState.dailyQuestCompleted} />
-        <GuildPanel currentGuild={gameState.guild} onJoinGuild={joinGuild} guildXp={gameState.guildXpContributed} />
+        <GuildPanel currentGuild={gameState.guild} onJoinGuild={joinGuild} guildXp={gameState.guildXpContributed} classId={user?.classId} gameState={{ id: user?.id }} />
         <BossChallenge
           completedBosses={gameState.completedBossChallenges}
           onSubmit={handleSubmitBoss}
@@ -1183,6 +1392,7 @@ function GameContent() {
         />
       )}
 
+      {showLeaderboard && user?.classId && <Leaderboard classId={user.classId} currentPlayerId={user.id} onClose={() => setShowLeaderboard(false)} />}
       {showTrophyCase && <TrophyCase achievements={gameState.unlockedAchievements} onClose={() => setShowTrophyCase(false)} />}
       {showAvatarBuilder && <AvatarBuilder gameState={gameState} getCurrentLevel={getCurrentLevel} onBuy={buyAvatarItem} onEquip={equipAvatarItem} onClose={() => setShowAvatarBuilder(false)} onSetName={setPlayerName} />}
       {showMySubmissions && <MySubmissions submissions={submissions} onClose={() => setShowMySubmissions(false)} />}
