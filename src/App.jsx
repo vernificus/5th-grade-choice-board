@@ -3,11 +3,12 @@ import {
   Gamepad2, Mic, BarChart3, Palette, CheckCircle2, Trophy, Rocket, Info, X, PlayCircle,
   Star, Gift, Swords, Users, User, Sparkles, Zap, Shield, Crown, Target,
   Upload, Link, Link2, Clock, CheckCheck, XCircle, ClipboardList, Lock, Eye, FileText, LogOut,
-  MessageSquare
+  MessageSquare, Pencil
 } from 'lucide-react';
 import { useGameState } from './hooks/useGameState';
 import {
-  LEVELS, ACHIEVEMENTS, GUILDS, AVATAR_ITEMS, BOSS_CHALLENGES, LEARNING_PATHS, GUILD_CHALLENGES
+  LEVELS, ACHIEVEMENTS, GUILDS, AVATAR_ITEMS, BOSS_CHALLENGES, LEARNING_PATHS, GUILD_CHALLENGES,
+  GUILD_TROPHIES, GUILD_BANNERS
 } from './data/gameData';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import LoginScreen from './components/LoginScreen';
@@ -150,6 +151,11 @@ function GuildPanel({ currentGuild, onJoinGuild, guildXp, classId, gameState }) 
   const [showGuildDetails, setShowGuildDetails] = useState(false);
   const [guildLeaderboard, setGuildLeaderboard] = useState({});
   const [loadingGuild, setLoadingGuild] = useState(false);
+  const [guildHall, setGuildHall] = useState(null);
+  const [editingHall, setEditingHall] = useState(false);
+  const [hallDescription, setHallDescription] = useState('');
+  const [hallBanner, setHallBanner] = useState('default');
+  const [savingHall, setSavingHall] = useState(false);
 
   const loadGuildData = async () => {
     if (!classId) return;
@@ -157,10 +163,32 @@ function GuildPanel({ currentGuild, onJoinGuild, guildXp, classId, gameState }) 
     try {
       const data = await backend.getGuildLeaderboard(classId);
       setGuildLeaderboard(data);
+      if (currentGuild) {
+        const hall = await backend.getGuildHall(classId, currentGuild);
+        setGuildHall(hall);
+        setHallDescription(hall.description || '');
+        setHallBanner(hall.banner || 'default');
+      }
     } catch (e) {
       console.error("Failed to load guild data", e);
     }
     setLoadingGuild(false);
+  };
+
+  const handleSaveHall = async () => {
+    if (!classId || !currentGuild) return;
+    setSavingHall(true);
+    try {
+      await backend.updateGuildHall(classId, currentGuild, {
+        description: hallDescription,
+        banner: hallBanner,
+      });
+      setGuildHall(prev => ({ ...prev, description: hallDescription, banner: hallBanner }));
+      setEditingHall(false);
+    } catch (e) {
+      alert('Error saving guild hall: ' + e.message);
+    }
+    setSavingHall(false);
   };
 
   if (!currentGuild) {
@@ -212,6 +240,16 @@ function GuildPanel({ currentGuild, onJoinGuild, guildXp, classId, gameState }) 
   const weekOfYear = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / 604800000);
   const currentChallenge = GUILD_CHALLENGES[weekOfYear % GUILD_CHALLENGES.length];
 
+  // Banner gradient based on theme
+  const bannerGradients = {
+    default: 'from-slate-700 to-slate-800',
+    flames: 'from-red-900/60 to-orange-900/60',
+    stars: 'from-indigo-900/60 to-purple-900/60',
+    forest: 'from-green-900/60 to-emerald-900/60',
+    ocean: 'from-blue-900/60 to-cyan-900/60',
+    crystal: 'from-violet-900/60 to-pink-900/60',
+  };
+
   return (
     <>
       <section className={`mb-6 p-4 rounded-xl ${guild.color} bg-opacity-30 border border-opacity-50`} aria-label={`Your guild: ${guild.name}`}>
@@ -252,7 +290,7 @@ function GuildPanel({ currentGuild, onJoinGuild, guildXp, classId, gameState }) 
         </button>
       </section>
 
-      {/* Guild Details Modal */}
+      {/* Guild Hall Modal */}
       {showGuildDetails && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm"
@@ -263,24 +301,103 @@ function GuildPanel({ currentGuild, onJoinGuild, guildXp, classId, gameState }) 
           onKeyDown={(e) => e.key === 'Escape' && setShowGuildDetails(false)}
         >
           <div className="bg-slate-800 border-2 border-yellow-500 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <span className="text-4xl" aria-hidden="true">{guild.emoji}</span>
-                <div>
-                  <h3 id="guild-details-title" className="text-2xl font-black uppercase italic">{guild.name}</h3>
-                  <p className="text-slate-400 text-sm">{guild.motto}</p>
+
+            {/* Guild Hall Banner */}
+            <div className={`-mx-6 -mt-6 mb-6 p-6 pb-4 rounded-t-2xl bg-gradient-to-br ${bannerGradients[guildHall?.banner || 'default']}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-5xl" aria-hidden="true">{guild.emoji}</span>
+                  <div>
+                    <h3 id="guild-details-title" className="text-2xl font-black uppercase italic">{guild.name}</h3>
+                    <p className="text-slate-300 text-sm">{guild.motto}</p>
+                    {guildHall?.description && (
+                      <p className="text-slate-400 text-xs mt-1 italic">"{guildHall.description}"</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setEditingHall(!editingHall)}
+                    className="p-2 text-slate-400 hover:text-white transition-colors"
+                    aria-label="Customize guild hall"
+                  >
+                    <Pencil className="w-4 h-4" aria-hidden="true" />
+                  </button>
+                  <button onClick={() => setShowGuildDetails(false)} className="text-slate-400 hover:text-white" aria-label="Close guild hall">
+                    <X className="w-6 h-6" aria-hidden="true" />
+                  </button>
                 </div>
               </div>
-              <button onClick={() => setShowGuildDetails(false)} className="text-slate-400 hover:text-white" aria-label="Close guild hall">
-                <X className="w-6 h-6" aria-hidden="true" />
-              </button>
             </div>
+
+            {/* Edit Guild Hall */}
+            {editingHall && (
+              <div className="mb-6 p-4 bg-slate-700/50 rounded-xl border border-slate-600">
+                <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                  <Pencil className="w-4 h-4 text-yellow-400" aria-hidden="true" /> Customize Guild Hall
+                </h4>
+                <div className="space-y-3">
+                  <div>
+                    <label htmlFor="hall-desc" className="block text-xs text-slate-400 font-bold uppercase mb-1">Guild Description</label>
+                    <input
+                      id="hall-desc"
+                      type="text"
+                      value={hallDescription}
+                      onChange={e => setHallDescription(e.target.value)}
+                      placeholder="Write your guild's battle cry or description..."
+                      maxLength={100}
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:border-yellow-500 outline-none text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 font-bold uppercase mb-2">Hall Banner Theme</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {GUILD_BANNERS.map(b => (
+                        <button
+                          key={b.id}
+                          onClick={() => setHallBanner(b.id)}
+                          className={`p-2 rounded-lg text-xs font-bold transition-colors ${hallBanner === b.id ? 'bg-yellow-500 text-slate-900' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
+                        >
+                          {b.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleSaveHall}
+                    disabled={savingHall}
+                    className="px-4 py-2 bg-yellow-500 hover:bg-yellow-400 text-slate-900 font-bold rounded-lg text-sm disabled:opacity-50"
+                  >
+                    {savingHall ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Trophy Showcase */}
+            {guildHall && (guildHall.trophies || []).length > 0 && (
+              <div className="mb-6">
+                <h4 className="text-xs font-bold uppercase tracking-widest text-yellow-400 mb-3 flex items-center gap-2">
+                  <Trophy className="w-4 h-4" aria-hidden="true" /> Trophy Showcase
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {guildHall.trophies.map((trophy, idx) => (
+                    <div key={idx} className="p-3 bg-gradient-to-b from-yellow-900/20 to-slate-800 rounded-xl border border-yellow-500/30 text-center">
+                      <div className="text-4xl mb-1" aria-hidden="true">{trophy.icon}</div>
+                      <p className="font-bold text-white text-xs">{trophy.title}</p>
+                      {trophy.message && <p className="text-xs text-slate-400 mt-1 italic">"{trophy.message}"</p>}
+                      <p className="text-xs text-slate-500 mt-1">{new Date(trophy.awardedAt).toLocaleDateString()}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Guild vs Guild Standings */}
             <div className="mb-6">
               <h4 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Guild Standings</h4>
               <div className="grid grid-cols-2 gap-3">
-                {GUILDS.map(g => {
+                {[...GUILDS].sort((a, b) => (guildLeaderboard[b.id]?.totalXp || 0) - (guildLeaderboard[a.id]?.totalXp || 0)).map((g, idx) => {
                   const stats = guildLeaderboard[g.id];
                   const isMyGuild = g.id === currentGuild;
                   return (
@@ -289,6 +406,9 @@ function GuildPanel({ currentGuild, onJoinGuild, guildXp, classId, gameState }) 
                       className={`p-3 rounded-xl ${isMyGuild ? g.color + ' bg-opacity-40 border-2 border-white/20' : 'bg-slate-700/50'}`}
                     >
                       <div className="flex items-center gap-2 mb-1">
+                        {idx === 0 && <span className="text-sm" aria-hidden="true">🥇</span>}
+                        {idx === 1 && <span className="text-sm" aria-hidden="true">🥈</span>}
+                        {idx === 2 && <span className="text-sm" aria-hidden="true">🥉</span>}
                         <span className="text-xl" aria-hidden="true">{g.emoji}</span>
                         <span className="font-bold text-sm text-white">{g.name}</span>
                       </div>

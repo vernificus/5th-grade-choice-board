@@ -4,9 +4,9 @@ import { realBackend as backend } from '../services/realBackend';
 import {
   Users, Plus, LogOut, BookOpen, ClipboardList, CheckCircle2,
   XCircle, Clock, ChevronRight, GraduationCap, Copy, Trash2, Edit, RefreshCw, RotateCcw, Link, Save, Gift,
-  Share2, UserPlus, X, Mail, MessageSquare, Sparkles, Star, Trophy, ChevronDown, ChevronUp, BarChart3, Eye
+  Share2, UserPlus, X, Mail, MessageSquare, Sparkles, Star, Trophy, ChevronDown, ChevronUp, BarChart3, Eye, Zap
 } from 'lucide-react';
-import { LEVELS, ACHIEVEMENTS } from '../data/gameData';
+import { LEVELS, ACHIEVEMENTS, GUILDS, GUILD_TROPHIES } from '../data/gameData';
 import Avatar3D from './Avatar3D';
 import { FileViewer } from './FileViewer';
 import ActivityEditor from './ActivityEditor';
@@ -465,6 +465,16 @@ export default function TeacherPortal() {
                   </button>
                   <button
                     role="tab"
+                    aria-selected={activeTab === 'guilds'}
+                    aria-controls="tabpanel-guilds"
+                    id="tab-guilds"
+                    onClick={() => setActiveTab('guilds')}
+                    className={`pb-4 px-2 font-bold ${activeTab === 'guilds' ? 'text-purple-400 border-b-2 border-purple-400' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    <span className="flex items-center gap-1"><Users className="w-4 h-4" aria-hidden="true" /> Guilds</span>
+                  </button>
+                  <button
+                    role="tab"
                     aria-selected={activeTab === 'sharing'}
                     aria-controls="tabpanel-sharing"
                     id="tab-sharing"
@@ -770,6 +780,12 @@ export default function TeacherPortal() {
                   </div>
                 )}
 
+                {activeTab === 'guilds' && (
+                  <div role="tabpanel" id="tabpanel-guilds" aria-labelledby="tab-guilds">
+                    <GuildManagement classId={selectedClass.id} students={students} onStudentsUpdated={() => backend.getStudents(selectedClass.id).then(setStudents)} />
+                  </div>
+                )}
+
                 {activeTab === 'students' && (
                   <div role="tabpanel" id="tabpanel-students" aria-labelledby="tab-students"><RosterManager
                     classId={selectedClass.id}
@@ -818,6 +834,358 @@ export default function TeacherPortal() {
 
         </div>
       </div>
+    </div>
+  );
+}
+
+// ============== GUILD MANAGEMENT (TEACHER) ==============
+function GuildManagement({ classId, students, onStudentsUpdated }) {
+  const [guildData, setGuildData] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [rewardGuild, setRewardGuild] = useState(null);
+  const [rewardType, setRewardType] = useState('xp');
+  const [rewardAmount, setRewardAmount] = useState('');
+  const [rewardAchievement, setRewardAchievement] = useState('');
+  const [givingReward, setGivingReward] = useState(false);
+  const [trophyGuild, setTrophyGuild] = useState(null);
+  const [selectedTrophy, setSelectedTrophy] = useState('');
+  const [trophyMessage, setTrophyMessage] = useState('');
+  const [awardingTrophy, setAwardingTrophy] = useState(false);
+  const [guildHalls, setGuildHalls] = useState({});
+
+  useEffect(() => {
+    loadGuildData();
+  }, [classId]);
+
+  const loadGuildData = async () => {
+    setLoading(true);
+    try {
+      const data = await backend.getGuildLeaderboard(classId);
+      setGuildData(data);
+      // Load guild halls
+      const halls = {};
+      for (const guild of GUILDS) {
+        halls[guild.id] = await backend.getGuildHall(classId, guild.id);
+      }
+      setGuildHalls(halls);
+    } catch (e) {
+      console.error("Failed to load guild data", e);
+    }
+    setLoading(false);
+  };
+
+  const handleGuildReward = async () => {
+    if (!rewardGuild) return;
+    setGivingReward(true);
+    try {
+      let value;
+      if (rewardType === 'xp' || rewardType === 'coins') {
+        value = parseInt(rewardAmount) || 0;
+        if (value <= 0) { alert('Enter a positive amount'); setGivingReward(false); return; }
+      } else {
+        if (!rewardAchievement) { alert('Select an achievement'); setGivingReward(false); return; }
+        value = rewardAchievement;
+      }
+      const count = await backend.rewardGuild(classId, rewardGuild, rewardType, value);
+      const guildName = GUILDS.find(g => g.id === rewardGuild)?.name || rewardGuild;
+      alert(`Reward given to ${count} members of ${guildName}!`);
+      setRewardGuild(null);
+      setRewardAmount('');
+      setRewardAchievement('');
+      loadGuildData();
+      if (onStudentsUpdated) onStudentsUpdated();
+    } catch (error) {
+      alert('Error giving guild reward: ' + error.message);
+    }
+    setGivingReward(false);
+  };
+
+  const handleAwardTrophy = async () => {
+    if (!trophyGuild || !selectedTrophy) return;
+    setAwardingTrophy(true);
+    try {
+      const trophy = GUILD_TROPHIES.find(t => t.id === selectedTrophy);
+      await backend.addGuildHallTrophy(classId, trophyGuild, {
+        ...trophy,
+        message: trophyMessage || '',
+      });
+      const guildName = GUILDS.find(g => g.id === trophyGuild)?.name || trophyGuild;
+      alert(`${trophy.title} awarded to ${guildName}!`);
+      setTrophyGuild(null);
+      setSelectedTrophy('');
+      setTrophyMessage('');
+      loadGuildData();
+    } catch (error) {
+      alert('Error awarding trophy: ' + error.message);
+    }
+    setAwardingTrophy(false);
+  };
+
+  // Sort guilds by total XP for leaderboard
+  const sortedGuilds = [...GUILDS].sort((a, b) => {
+    const aXp = guildData[a.id]?.totalXp || 0;
+    const bXp = guildData[b.id]?.totalXp || 0;
+    return bXp - aXp;
+  });
+
+  const unassigned = students.filter(s => !s.guild);
+
+  return (
+    <div className="space-y-6">
+      {/* Guild Leaderboard */}
+      <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+          <Trophy className="w-6 h-6 text-yellow-400" aria-hidden="true" /> Guild Leaderboard
+        </h3>
+
+        {loading ? (
+          <p className="text-slate-500 text-center py-4" role="status">Loading guild data...</p>
+        ) : (
+          <div className="space-y-3">
+            {sortedGuilds.map((guild, idx) => {
+              const stats = guildData[guild.id];
+              const hallTrophies = guildHalls[guild.id]?.trophies || [];
+              return (
+                <div key={guild.id} className={`p-4 rounded-xl border-2 ${idx === 0 ? 'border-yellow-500/50 bg-yellow-500/5' : 'border-slate-600 bg-slate-700/30'}`}>
+                  <div className="flex items-center gap-4">
+                    <div className="w-8 text-center flex-shrink-0">
+                      {idx === 0 && <span className="text-2xl" aria-hidden="true">🥇</span>}
+                      {idx === 1 && <span className="text-2xl" aria-hidden="true">🥈</span>}
+                      {idx === 2 && <span className="text-2xl" aria-hidden="true">🥉</span>}
+                      {idx === 3 && <span className="text-lg font-bold text-slate-500">#4</span>}
+                    </div>
+                    <div className={`w-12 h-12 rounded-xl ${guild.color} flex items-center justify-center`}>
+                      <span className="text-2xl" aria-hidden="true">{guild.emoji}</span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-black text-white text-lg">{guild.name}</p>
+                      <p className="text-xs text-slate-400">{guild.motto}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-black text-yellow-400">{stats?.totalXp || 0}</p>
+                      <p className="text-xs text-slate-400">Total XP</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-bold text-blue-400">{stats?.memberCount || 0}</p>
+                      <p className="text-xs text-slate-400">Members</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { setRewardGuild(guild.id); setRewardType('xp'); setRewardAmount(''); }}
+                        className="p-2 text-slate-400 hover:text-yellow-400 transition-colors"
+                        aria-label={`Give reward to ${guild.name}`}
+                      >
+                        <Gift className="w-5 h-5" aria-hidden="true" />
+                      </button>
+                      <button
+                        onClick={() => { setTrophyGuild(guild.id); setSelectedTrophy(''); setTrophyMessage(''); }}
+                        className="p-2 text-slate-400 hover:text-purple-400 transition-colors"
+                        aria-label={`Award trophy to ${guild.name}`}
+                      >
+                        <Trophy className="w-5 h-5" aria-hidden="true" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Guild Hall Trophies Preview */}
+                  {hallTrophies.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-slate-600/50 flex items-center gap-2 flex-wrap">
+                      <span className="text-xs text-slate-500 uppercase font-bold">Hall Trophies:</span>
+                      {hallTrophies.map((t, i) => (
+                        <span key={i} className="text-lg" title={`${t.title}${t.message ? ': ' + t.message : ''}`} aria-label={t.title}>{t.icon}</span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Member List */}
+                  {stats && stats.members.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-slate-600/50">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        {stats.members.map(member => {
+                          const level = LEVELS.reduce((acc, l) => member.totalXp >= l.xpRequired ? l : acc, LEVELS[0]);
+                          return (
+                            <div key={member.id} className="flex items-center gap-2 p-2 bg-slate-800/50 rounded-lg text-sm">
+                              <Avatar3D avatar={member.avatar} level={level.level} size="sm" />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-bold text-white truncate">{member.name}</p>
+                                <p className={`text-xs ${level.color}`}>Lv.{level.level}</p>
+                              </div>
+                              <span className="text-yellow-400 font-bold text-xs">{member.xp} XP</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Unassigned students */}
+        {unassigned.length > 0 && (
+          <div className="mt-6 p-4 bg-slate-700/30 rounded-xl border border-dashed border-slate-600">
+            <h4 className="text-sm font-bold text-slate-400 mb-3">Students Without a Guild ({unassigned.length})</h4>
+            <div className="flex flex-wrap gap-2">
+              {unassigned.map(s => (
+                <span key={s.id} className="px-3 py-1 bg-slate-800 rounded-full text-sm text-slate-300">{s.name}</span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Guild Reward Modal */}
+      {rewardGuild && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm" role="dialog" aria-modal="true" onClick={() => setRewardGuild(null)}>
+          <div className="bg-slate-800 border-2 border-yellow-500 rounded-2xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <Gift className="w-6 h-6 text-yellow-400" aria-hidden="true" /> Guild Reward
+              </h3>
+              <button onClick={() => setRewardGuild(null)} className="text-slate-400 hover:text-white" aria-label="Close">
+                <X className="w-5 h-5" aria-hidden="true" />
+              </button>
+            </div>
+
+            {(() => {
+              const guild = GUILDS.find(g => g.id === rewardGuild);
+              const stats = guildData[rewardGuild];
+              return (
+                <div className={`p-3 rounded-xl ${guild.color} bg-opacity-30 mb-4 flex items-center gap-3`}>
+                  <span className="text-3xl" aria-hidden="true">{guild.emoji}</span>
+                  <div>
+                    <p className="font-bold text-white">{guild.name}</p>
+                    <p className="text-xs text-slate-300">{stats?.memberCount || 0} members will receive this reward</p>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="flex gap-2 mb-4" role="group" aria-label="Reward type">
+              <button onClick={() => setRewardType('xp')} className={`flex-1 py-2 rounded-lg font-bold text-sm flex items-center justify-center gap-1 ${rewardType === 'xp' ? 'bg-green-600 text-white' : 'bg-slate-700 text-slate-300'}`}>
+                <Zap className="w-4 h-4" aria-hidden="true" /> XP
+              </button>
+              <button onClick={() => setRewardType('coins')} className={`flex-1 py-2 rounded-lg font-bold text-sm flex items-center justify-center gap-1 ${rewardType === 'coins' ? 'bg-yellow-600 text-white' : 'bg-slate-700 text-slate-300'}`}>
+                <Star className="w-4 h-4" aria-hidden="true" /> Coins
+              </button>
+              <button onClick={() => setRewardType('achievement')} className={`flex-1 py-2 rounded-lg font-bold text-sm flex items-center justify-center gap-1 ${rewardType === 'achievement' ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-300'}`}>
+                <Trophy className="w-4 h-4" aria-hidden="true" /> Trophy
+              </button>
+            </div>
+
+            {(rewardType === 'xp' || rewardType === 'coins') && (
+              <div className="mb-4">
+                <label htmlFor="guild-reward-amount" className="block text-sm text-slate-400 mb-1">
+                  Amount of {rewardType === 'xp' ? 'XP' : 'Coins'} per member
+                </label>
+                <input
+                  id="guild-reward-amount"
+                  type="number"
+                  min="1"
+                  value={rewardAmount}
+                  onChange={e => setRewardAmount(e.target.value)}
+                  placeholder={rewardType === 'xp' ? 'e.g. 100' : 'e.g. 50'}
+                  className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:border-yellow-500 outline-none"
+                />
+              </div>
+            )}
+
+            {rewardType === 'achievement' && (
+              <div className="mb-4">
+                <label htmlFor="guild-reward-achievement" className="block text-sm text-slate-400 mb-1">Select Achievement to unlock for all members</label>
+                <select
+                  id="guild-reward-achievement"
+                  value={rewardAchievement}
+                  onChange={e => setRewardAchievement(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:border-yellow-500 outline-none"
+                >
+                  <option value="">-- Choose --</option>
+                  {ACHIEVEMENTS.map(a => (
+                    <option key={a.id} value={a.id}>{a.icon} {a.title} - {a.desc}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <button
+              onClick={handleGuildReward}
+              disabled={givingReward}
+              className="w-full py-3 bg-yellow-500 hover:bg-yellow-400 text-slate-900 font-bold rounded-lg transition-colors disabled:opacity-50"
+            >
+              {givingReward ? 'Giving...' : 'Give Reward to Entire Guild'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Award Trophy to Guild Hall Modal */}
+      {trophyGuild && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm" role="dialog" aria-modal="true" onClick={() => setTrophyGuild(null)}>
+          <div className="bg-slate-800 border-2 border-purple-500 rounded-2xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <Trophy className="w-6 h-6 text-purple-400" aria-hidden="true" /> Award Guild Hall Trophy
+              </h3>
+              <button onClick={() => setTrophyGuild(null)} className="text-slate-400 hover:text-white" aria-label="Close">
+                <X className="w-5 h-5" aria-hidden="true" />
+              </button>
+            </div>
+
+            {(() => {
+              const guild = GUILDS.find(g => g.id === trophyGuild);
+              return (
+                <div className={`p-3 rounded-xl ${guild.color} bg-opacity-30 mb-4 flex items-center gap-3`}>
+                  <span className="text-3xl" aria-hidden="true">{guild.emoji}</span>
+                  <div>
+                    <p className="font-bold text-white">{guild.name} Guild Hall</p>
+                    <p className="text-xs text-slate-300">This trophy will be displayed in their Guild Hall</p>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="mb-4">
+              <label className="block text-sm text-slate-400 mb-2">Select Trophy</label>
+              <div className="grid grid-cols-2 gap-2">
+                {GUILD_TROPHIES.map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => setSelectedTrophy(t.id)}
+                    className={`p-3 rounded-lg text-left transition-colors ${selectedTrophy === t.id ? 'bg-purple-600/30 border-2 border-purple-500' : 'bg-slate-700 border-2 border-transparent hover:border-slate-500'}`}
+                  >
+                    <span className="text-2xl" aria-hidden="true">{t.icon}</span>
+                    <p className="font-bold text-white text-xs mt-1">{t.title}</p>
+                    <p className="text-xs text-slate-400">{t.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label htmlFor="trophy-message" className="block text-sm text-slate-400 mb-1">Trophy Message (optional)</label>
+              <input
+                id="trophy-message"
+                type="text"
+                value={trophyMessage}
+                onChange={e => setTrophyMessage(e.target.value)}
+                placeholder="e.g. Great teamwork this week!"
+                maxLength={100}
+                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:border-purple-500 outline-none"
+              />
+            </div>
+
+            <button
+              onClick={handleAwardTrophy}
+              disabled={awardingTrophy || !selectedTrophy}
+              className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg transition-colors disabled:opacity-50"
+            >
+              {awardingTrophy ? 'Awarding...' : 'Award Trophy to Guild Hall'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
