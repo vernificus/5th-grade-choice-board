@@ -630,6 +630,10 @@ export const realBackend = {
             id: s.id,
             name: s.name,
             xp: s.guildXpContributed || 0,
+            totalXp: s.xp || 0,
+            coins: s.coins || 0,
+            currentStreak: s.currentStreak || 0,
+            unlockedAchievements: s.unlockedAchievements || [],
             avatar: s.avatar || { color: 'default', hat: 'none', accessory: 'none', face: 'happy' },
           });
         }
@@ -642,6 +646,76 @@ export const realBackend = {
     } catch (error) {
       console.error("Error getting guild leaderboard:", error);
       return {};
+    }
+  },
+
+  // ================= GUILD REWARDS (TEACHER) =================
+  async rewardGuild(classId, guildId, rewardType, rewardValue) {
+    try {
+      const students = await this.getStudents(classId);
+      const guildMembers = students.filter(s => s.guild === guildId);
+      if (guildMembers.length === 0) throw new Error('No members in this guild');
+
+      for (const student of guildMembers) {
+        const updates = {};
+        if (rewardType === 'xp') {
+          updates.xp = (student.xp || 0) + rewardValue;
+          updates.guildXpContributed = (student.guildXpContributed || 0) + rewardValue;
+        } else if (rewardType === 'coins') {
+          updates.coins = (student.coins || 0) + rewardValue;
+        } else if (rewardType === 'achievement') {
+          const current = student.unlockedAchievements || [];
+          if (!current.includes(rewardValue)) {
+            updates.unlockedAchievements = [...current, rewardValue];
+          }
+        }
+        if (Object.keys(updates).length > 0) {
+          await updateDoc(doc(db, "students", student.id), updates);
+        }
+      }
+      return guildMembers.length;
+    } catch (error) {
+      console.error("Error rewarding guild:", error);
+      throw error;
+    }
+  },
+
+  // ================= GUILD HALL =================
+  async getGuildHall(classId, guildId) {
+    try {
+      const hallDoc = await getDoc(doc(db, "classes", classId, "guildHalls", guildId));
+      if (hallDoc.exists()) {
+        return { id: hallDoc.id, ...hallDoc.data() };
+      }
+      return { id: guildId, trophies: [], description: '', banner: '' };
+    } catch (error) {
+      console.error("Error getting guild hall:", error);
+      return { id: guildId, trophies: [], description: '', banner: '' };
+    }
+  },
+
+  async updateGuildHall(classId, guildId, data) {
+    try {
+      await setDoc(doc(db, "classes", classId, "guildHalls", guildId), {
+        ...data,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      return true;
+    } catch (error) {
+      console.error("Error updating guild hall:", error);
+      throw error;
+    }
+  },
+
+  async addGuildHallTrophy(classId, guildId, trophy) {
+    try {
+      const hall = await this.getGuildHall(classId, guildId);
+      const trophies = [...(hall.trophies || []), { ...trophy, awardedAt: new Date().toISOString() }];
+      await this.updateGuildHall(classId, guildId, { trophies });
+      return true;
+    } catch (error) {
+      console.error("Error adding guild hall trophy:", error);
+      throw error;
     }
   },
 };

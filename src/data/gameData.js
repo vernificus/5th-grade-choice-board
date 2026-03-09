@@ -48,6 +48,28 @@ export const GUILDS = [
   { id: 'sharks', name: 'Ocean Sharks', color: 'bg-blue-600', emoji: '🦈', motto: 'Dive deep into learning!' },
 ];
 
+// Guild Hall Trophy Types (awarded by teachers to guilds)
+export const GUILD_TROPHIES = [
+  { id: 'gt_teamwork', title: 'Teamwork Trophy', icon: '🤝', desc: 'Outstanding collaboration' },
+  { id: 'gt_knowledge', title: 'Knowledge Cup', icon: '📚', desc: 'Exceptional learning' },
+  { id: 'gt_creativity', title: 'Creativity Award', icon: '🎨', desc: 'Most creative guild' },
+  { id: 'gt_streak', title: 'Streak Flame', icon: '🔥', desc: 'Best streak consistency' },
+  { id: 'gt_champion', title: 'Champion Shield', icon: '🛡️', desc: 'Weekly challenge champion' },
+  { id: 'gt_mvp', title: 'MVP Crown', icon: '👑', desc: 'Most valuable guild' },
+  { id: 'gt_rising', title: 'Rising Star', icon: '🌟', desc: 'Most improved guild' },
+  { id: 'gt_spirit', title: 'Spirit Award', icon: '💫', desc: 'Best guild spirit' },
+];
+
+// Guild Hall Banner Themes
+export const GUILD_BANNERS = [
+  { id: 'default', name: 'Classic', desc: 'The default guild banner' },
+  { id: 'flames', name: 'Flames', desc: 'A fiery banner of determination' },
+  { id: 'stars', name: 'Starfield', desc: 'A cosmic banner of knowledge' },
+  { id: 'forest', name: 'Enchanted Forest', desc: 'A nature-themed banner' },
+  { id: 'ocean', name: 'Deep Ocean', desc: 'An aquatic banner of mystery' },
+  { id: 'crystal', name: 'Crystal Cave', desc: 'A sparkling crystalline banner' },
+];
+
 // Guild Challenges (weekly goals for entire guild)
 export const GUILD_CHALLENGES = [
   { id: 'gc1', title: 'Knowledge Blitz', desc: 'Guild members complete 10 activities total', target: 10, type: 'activities', reward: 100, emoji: '⚔️' },
