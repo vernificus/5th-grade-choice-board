@@ -186,6 +186,19 @@ export const MYSTERY_REWARDS = [
   { id: 'double_xp', name: 'Double XP Token', desc: 'Next activity gives 2x XP', type: 'item', value: 'double_xp', rarity: 'epic', color: 'text-pink-400' },
 ];
 
+// Maximum number of categories teachers can create
+export const MAX_CATEGORIES = 6;
+
+// Default color classes for learning paths (cycles if more paths are added)
+export const PATH_COLORS = [
+  'bg-blue-600',
+  'bg-purple-600',
+  'bg-orange-600',
+  'bg-green-600',
+  'bg-pink-600',
+  'bg-teal-600',
+];
+
 // Learning Paths (activities)
 export const LEARNING_PATHS = [
   {

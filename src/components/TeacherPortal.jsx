@@ -6,7 +6,7 @@ import {
   XCircle, Clock, ChevronRight, GraduationCap, Copy, Trash2, Edit, RefreshCw, RotateCcw, Link, Save, Gift,
   Share2, UserPlus, X, Mail, MessageSquare, Sparkles, Star, Trophy, ChevronDown, ChevronUp, BarChart3, Eye, Zap
 } from 'lucide-react';
-import { LEVELS, ACHIEVEMENTS, GUILDS, GUILD_TROPHIES } from '../data/gameData';
+import { LEVELS, ACHIEVEMENTS, GUILDS, GUILD_TROPHIES, LEARNING_PATHS, MAX_CATEGORIES, PATH_COLORS } from '../data/gameData';
 import Avatar3D from './Avatar3D';
 import { FileViewer } from './FileViewer';
 import ActivityEditor from './ActivityEditor';
@@ -22,8 +22,8 @@ export default function TeacherPortal() {
   const [creatingClass, setCreatingClass] = useState(false);
   const [newClassName, setNewClassName] = useState('');
   const [activeTab, setActiveTab] = useState('submissions'); // 'submissions', 'students', 'activities', 'categories'
-  const [categoryNames, setCategoryNames] = useState({ path1: '', path2: '', path3: '' });
-  const [categorySubtitles, setCategorySubtitles] = useState({ path1: '', path2: '', path3: '' });
+  const [categoryNames, setCategoryNames] = useState({});
+  const [categorySubtitles, setCategorySubtitles] = useState({});
   const [savingCategories, setSavingCategories] = useState(false);
 
   // Co-teacher state
@@ -193,16 +193,25 @@ export default function TeacherPortal() {
   // Load category names when class changes
   useEffect(() => {
     if (selectedClass) {
-      setCategoryNames({
-        path1: selectedClass.categoryNames?.path1 || 'The Wordsmith',
-        path2: selectedClass.categoryNames?.path2 || 'The Data Scientist',
-        path3: selectedClass.categoryNames?.path3 || 'The Creator',
+      // Build names/subtitles from saved data, falling back to defaults from LEARNING_PATHS
+      const names = {};
+      const subs = {};
+      // Start with the default paths
+      LEARNING_PATHS.forEach(p => {
+        names[p.id] = selectedClass.categoryNames?.[p.id] || p.title;
+        subs[p.id] = selectedClass.categorySubtitles?.[p.id] || p.subtitle;
       });
-      setCategorySubtitles({
-        path1: selectedClass.categorySubtitles?.path1 || 'Vocabulary Quest',
-        path2: selectedClass.categorySubtitles?.path2 || 'Progress Mission',
-        path3: selectedClass.categorySubtitles?.path3 || 'Expression Boss',
-      });
+      // Include any extra paths the teacher may have added beyond defaults
+      if (selectedClass.categoryNames) {
+        Object.keys(selectedClass.categoryNames).forEach(key => {
+          if (!(key in names)) {
+            names[key] = selectedClass.categoryNames[key];
+            subs[key] = selectedClass.categorySubtitles?.[key] || '';
+          }
+        });
+      }
+      setCategoryNames(names);
+      setCategorySubtitles(subs);
     }
   }, [selectedClass]);
 
@@ -496,23 +505,38 @@ export default function TeacherPortal() {
                   <div role="tabpanel" id="tabpanel-categories" aria-labelledby="tab-categories">
                     <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
                       <h3 className="text-xl font-bold text-white mb-2">Category Names</h3>
-                      <p className="text-slate-400 text-sm mb-6">Customize the three learning path category names and subtitles that students see.</p>
+                      <p className="text-slate-400 text-sm mb-6">Customize your learning path category names and subtitles that students see. You can have up to {MAX_CATEGORIES} categories.</p>
                       <div className="space-y-6">
-                        {[
-                          { key: 'path1', color: 'border-blue-500', defaultName: 'The Wordsmith', defaultSub: 'Vocabulary Quest' },
-                          { key: 'path2', color: 'border-purple-500', defaultName: 'The Data Scientist', defaultSub: 'Progress Mission' },
-                          { key: 'path3', color: 'border-orange-500', defaultName: 'The Creator', defaultSub: 'Expression Boss' },
-                        ].map(({ key, color, defaultName, defaultSub }) => (
+                        {Object.keys(categoryNames).map((key, idx) => {
+                          const borderColors = ['border-blue-500', 'border-purple-500', 'border-orange-500', 'border-green-500', 'border-pink-500', 'border-teal-500'];
+                          const color = borderColors[idx % borderColors.length];
+                          const isDefault = LEARNING_PATHS.some(p => p.id === key);
+                          return (
                           <div key={key} className={`p-4 bg-slate-700 rounded-lg border-l-4 ${color}`}>
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-xs text-slate-500 font-mono">{key}</span>
+                              {!isDefault && (
+                                <button
+                                  onClick={() => {
+                                    if (!window.confirm('Remove this category? Activities in it will need to be reassigned.')) return;
+                                    setCategoryNames(prev => { const next = { ...prev }; delete next[key]; return next; });
+                                    setCategorySubtitles(prev => { const next = { ...prev }; delete next[key]; return next; });
+                                  }}
+                                  className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1"
+                                >
+                                  <Trash2 className="w-3 h-3" /> Remove
+                                </button>
+                              )}
+                            </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div>
                                 <label htmlFor={`cat-name-${key}`} className="block text-xs text-slate-400 font-bold uppercase mb-1">Category Name</label>
                                 <input
                                   id={`cat-name-${key}`}
                                   type="text"
-                                  value={categoryNames[key]}
+                                  value={categoryNames[key] || ''}
                                   onChange={e => setCategoryNames(prev => ({ ...prev, [key]: e.target.value }))}
-                                  placeholder={defaultName}
+                                  placeholder="Category name"
                                   className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:border-green-500 outline-none"
                                 />
                               </div>
@@ -521,16 +545,39 @@ export default function TeacherPortal() {
                                 <input
                                   id={`cat-sub-${key}`}
                                   type="text"
-                                  value={categorySubtitles[key]}
+                                  value={categorySubtitles[key] || ''}
                                   onChange={e => setCategorySubtitles(prev => ({ ...prev, [key]: e.target.value }))}
-                                  placeholder={defaultSub}
+                                  placeholder="Subtitle"
                                   className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:border-green-500 outline-none"
                                 />
                               </div>
                             </div>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
+
+                      {Object.keys(categoryNames).length < MAX_CATEGORIES && (
+                        <button
+                          onClick={() => {
+                            const nextNum = Object.keys(categoryNames).length + 1;
+                            const newKey = `path${nextNum}`;
+                            // Find a unique key
+                            let key = newKey;
+                            let counter = nextNum;
+                            while (key in categoryNames) {
+                              counter++;
+                              key = `path${counter}`;
+                            }
+                            setCategoryNames(prev => ({ ...prev, [key]: `Category ${counter}` }));
+                            setCategorySubtitles(prev => ({ ...prev, [key]: '' }));
+                          }}
+                          className="mt-4 flex items-center gap-2 px-4 py-2 border-2 border-dashed border-slate-600 hover:border-green-500 text-slate-400 hover:text-green-400 rounded-lg transition-colors"
+                        >
+                          <Plus className="w-4 h-4" /> Add Category
+                        </button>
+                      )}
+
                       <button
                         onClick={handleSaveCategories}
                         disabled={savingCategories}

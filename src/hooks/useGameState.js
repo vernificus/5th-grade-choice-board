@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { LEVELS, ACHIEVEMENTS, DAILY_QUESTS, MYSTERY_REWARDS, LEARNING_PATHS as DEFAULT_PATHS } from '../data/gameData';
+import { LEVELS, ACHIEVEMENTS, DAILY_QUESTS, MYSTERY_REWARDS, LEARNING_PATHS as DEFAULT_PATHS, PATH_COLORS } from '../data/gameData';
 import { realBackend as backend } from '../services/realBackend';
 import { useAuth } from '../context/AuthContext';
 
@@ -30,7 +30,7 @@ const getDefaultState = () => ({
   doubleXpActive: false,
   totalActivitiesCompleted: 0,
   collaborationCount: 0,
-  pathCompletions: { path1: 0, path2: 0, path3: 0 },
+  pathCompletions: {},
   lastActivityReset: null,
 });
 
@@ -98,6 +98,23 @@ export function useGameState() {
           title: classDoc.categoryNames?.[path.id] || path.title,
           subtitle: classDoc.categorySubtitles?.[path.id] || path.subtitle,
         }));
+
+        // Add any extra categories that don't have activity paths yet
+        if (classDoc.categoryNames) {
+          const existingIds = new Set(paths.map(p => p.id));
+          Object.keys(classDoc.categoryNames).forEach(key => {
+            if (!existingIds.has(key)) {
+              paths.push({
+                id: key,
+                title: classDoc.categoryNames[key],
+                subtitle: classDoc.categorySubtitles?.[key] || '',
+                icon: 'BookOpen',
+                color: PATH_COLORS[(paths.length) % PATH_COLORS.length],
+                options: [],
+              });
+            }
+          });
+        }
       }
 
       setLearningPaths(paths);
@@ -191,11 +208,13 @@ export function useGameState() {
         case 'first_mission':
           unlocked = updatedState.totalActivitiesCompleted >= 1;
           break;
-        case 'variety_pack':
-          unlocked = updatedState.pathCompletions.path1 > 0 &&
-                     updatedState.pathCompletions.path2 > 0 &&
-                     updatedState.pathCompletions.path3 > 0;
+        case 'variety_pack': {
+          // Unlocked when the student has completed at least one activity from every available path
+          const completions = updatedState.pathCompletions || {};
+          const completedPaths = Object.values(completions).filter(c => c > 0).length;
+          unlocked = completedPaths >= 3 && completedPaths >= Object.keys(completions).length;
           break;
+        }
         case 'streak_3':
           unlocked = updatedState.currentStreak >= 3;
           break;
@@ -209,13 +228,13 @@ export function useGameState() {
           unlocked = updatedState.collaborationCount >= 3;
           break;
         case 'creator_5':
-          unlocked = updatedState.pathCompletions.path3 >= 5;
+          unlocked = (updatedState.pathCompletions?.path3 || 0) >= 5;
           break;
         case 'wordsmith_5':
-          unlocked = updatedState.pathCompletions.path1 >= 5;
+          unlocked = (updatedState.pathCompletions?.path1 || 0) >= 5;
           break;
         case 'data_5':
-          unlocked = updatedState.pathCompletions.path2 >= 5;
+          unlocked = (updatedState.pathCompletions?.path2 || 0) >= 5;
           break;
         case 'level_5':
           const level = LEVELS.reduce((acc, l) => updatedState.xp >= l.xpRequired ? l : acc, LEVELS[0]);
