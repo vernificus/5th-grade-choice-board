@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { realBackend as backend } from '../services/realBackend';
-import { UserPlus, Lock, Trash2, Save, Edit, X, Check, RotateCcw, Gift, Star, Zap, Trophy } from 'lucide-react';
+import { UserPlus, Lock, Trash2, Save, Edit, X, Check, RotateCcw, Gift, Star, Zap, Trophy, Eye, EyeOff } from 'lucide-react';
 import { ACHIEVEMENTS } from '../data/gameData';
 
 export default function RosterManager({ classId, onStudentAdded }) {
@@ -11,6 +11,7 @@ export default function RosterManager({ classId, onStudentAdded }) {
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', password: '' });
+  const [visiblePasswords, setVisiblePasswords] = useState({});
 
   useEffect(() => {
     loadStudents();
@@ -169,7 +170,7 @@ export default function RosterManager({ classId, onStudentAdded }) {
             <label htmlFor="new-student-password" className="sr-only">Set Password/PIN</label>
             <input
               id="new-student-password"
-              type="text"
+              type="password"
               placeholder="Set Password/PIN"
               value={newStudentPassword}
               onChange={e => setNewStudentPassword(e.target.value)}
@@ -260,8 +261,15 @@ export default function RosterManager({ classId, onStudentAdded }) {
                         </div>
                         <div>
                           <p className="font-bold text-white text-lg leading-tight">{student.name}</p>
-                          <p className="text-xs text-slate-400 font-mono bg-slate-800 px-2 py-0.5 rounded inline-block mt-1">
-                            Pass: <span className="text-yellow-400">{student.password || 'N/A'}</span>
+                          <p className="text-xs text-slate-400 font-mono bg-slate-800 px-2 py-0.5 rounded inline-flex items-center gap-1 mt-1">
+                            Pass: <span className="text-yellow-400">{visiblePasswords[student.id] ? (student.password || 'N/A') : '••••••'}</span>
+                            <button
+                              onClick={() => setVisiblePasswords(prev => ({ ...prev, [student.id]: !prev[student.id] }))}
+                              className="text-slate-500 hover:text-slate-300 ml-1"
+                              aria-label={visiblePasswords[student.id] ? `Hide password for ${student.name}` : `Show password for ${student.name}`}
+                            >
+                              {visiblePasswords[student.id] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                            </button>
                           </p>
                         </div>
                       </div>
