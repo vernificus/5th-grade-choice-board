@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { realBackend as backend } from '../services/realBackend';
-import { LEARNING_PATHS as DEFAULT_PATHS } from '../data/gameData';
+import { LEARNING_PATHS as DEFAULT_PATHS, PATH_COLORS } from '../data/gameData';
 import {
   Save, Plus, Trash2, BookOpen, Search, X, ChevronDown, ChevronUp,
   GripVertical, Link2, ExternalLink, Eye, EyeOff, Bold, Italic, Type,
@@ -274,7 +274,8 @@ export default function ActivityEditor({ classId, onSave, onCancel }) {
   const [editingActivityId, setEditingActivityId] = useState(null);
 
   // Which path sections are expanded in the sidebar
-  const [expandedPaths, setExpandedPaths] = useState({ path1: true, path2: true, path3: true });
+  // Initialize all paths as expanded (dynamically based on loaded data)
+  const [expandedPaths, setExpandedPaths] = useState({});
 
   // Show/hide preview
   const [showPreview, setShowPreview] = useState(false);
@@ -294,6 +295,23 @@ export default function ActivityEditor({ classId, onSave, onCancel }) {
             title: classDoc.categoryNames?.[path.id] || path.title,
             subtitle: classDoc.categorySubtitles?.[path.id] || path.subtitle,
           }));
+
+          // Add any extra categories that don't have activity paths yet
+          if (classDoc.categoryNames) {
+            const existingIds = new Set(paths.map(p => p.id));
+            Object.keys(classDoc.categoryNames).forEach((key, idx) => {
+              if (!existingIds.has(key)) {
+                paths.push({
+                  id: key,
+                  title: classDoc.categoryNames[key],
+                  subtitle: classDoc.categorySubtitles?.[key] || '',
+                  icon: 'BookOpen',
+                  color: PATH_COLORS[(paths.length) % PATH_COLORS.length],
+                  options: [],
+                });
+              }
+            });
+          }
         }
 
         // Normalize all steps to object form
@@ -306,6 +324,10 @@ export default function ActivityEditor({ classId, onSave, onCancel }) {
         }));
 
         setLearningPaths(paths);
+        // Expand all path sections by default
+        const expanded = {};
+        paths.forEach(p => { expanded[p.id] = true; });
+        setExpandedPaths(expanded);
       }
       setLoading(false);
     };

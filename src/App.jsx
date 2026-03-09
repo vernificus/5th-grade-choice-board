@@ -1323,7 +1323,7 @@ function GameContent() {
 
   const { user } = useAuth();
 
-  const [selectedPath, setSelectedPath] = useState({ path1: null, path2: null, path3: null });
+  const [selectedPath, setSelectedPath] = useState({});
   const [activeInstruction, setActiveInstruction] = useState(null);
   const [activePath, setActivePath] = useState(null);
   const [showTrophyCase, setShowTrophyCase] = useState(false);
@@ -1354,7 +1354,7 @@ function GameContent() {
   const handleSelect = (pathId, activity) => {
     setSelectedPath(prev => ({ ...prev, [pathId]: activity.id }));
     setActiveInstruction(activity);
-    setActivePath(LEARNING_PATHS.find(p => p.id === pathId));
+    setActivePath(learningPaths.find(p => p.id === pathId));
   };
 
   const handleSubmitActivity = (activity, pathId, submissionData) => {

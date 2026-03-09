@@ -140,7 +140,7 @@ export const mockBackend = {
         doubleXpActive: false,
         totalActivitiesCompleted: 0,
         collaborationCount: 0,
-        pathCompletions: { path1: 0, path2: 0, path3: 0 },
+        pathCompletions: {},
       };
       db.students.push(student);
 
