@@ -4,7 +4,7 @@ import { realBackend as backend } from '../services/realBackend';
 import {
   Users, Plus, LogOut, BookOpen, ClipboardList, CheckCircle2,
   XCircle, Clock, ChevronRight, GraduationCap, Copy, Trash2, Edit, RefreshCw, RotateCcw, Link, Save, Gift,
-  Share2, UserPlus, X, Mail, MessageSquare, Sparkles, Star, Trophy
+  Share2, UserPlus, X, Mail, MessageSquare, Sparkles, Star, Trophy, ChevronDown, ChevronUp, BarChart3, Eye
 } from 'lucide-react';
 import { LEVELS, ACHIEVEMENTS } from '../data/gameData';
 import Avatar3D from './Avatar3D';
@@ -385,6 +385,18 @@ export default function TeacherPortal() {
                     <div className="text-right border-l border-slate-600 pl-4">
                       <p className="text-3xl font-black text-white">{pending.length}</p>
                       <p className="text-slate-400 text-xs uppercase font-bold">Pending</p>
+                    </div>
+                    <div className="text-right border-l border-slate-600 pl-4">
+                      <p className="text-3xl font-black text-white">{reviewed.filter(s => s.status === 'approved').length}</p>
+                      <p className="text-slate-400 text-xs uppercase font-bold">Approved</p>
+                    </div>
+                    <div className="text-right border-l border-slate-600 pl-4">
+                      <p className="text-3xl font-black text-white">{reviewed.filter(s => s.status === 'rejected').length}</p>
+                      <p className="text-slate-400 text-xs uppercase font-bold">Rejected</p>
+                    </div>
+                    <div className="text-right border-l border-slate-600 pl-4">
+                      <p className="text-3xl font-black text-green-400">{students.length > 0 ? Math.round(students.reduce((sum, s) => sum + (s.xp || 0), 0) / students.length) : 0}</p>
+                      <p className="text-slate-400 text-xs uppercase font-bold">Avg XP</p>
                     </div>
                     <div className="ml-auto">
                       <button
@@ -789,24 +801,7 @@ export default function TeacherPortal() {
                         )}
 
                         {reviewed.length > 0 && (
-                          <>
-                            <h3 className="font-bold text-slate-400 uppercase text-xs tracking-widest mb-4 flex items-center gap-2 border-t border-slate-700 pt-8">
-                              <CheckCircle2 className="w-4 h-4" aria-hidden="true" /> Reviewed History
-                            </h3>
-                            <div className="opacity-60 hover:opacity-100 transition-opacity space-y-4">
-                              {reviewed.slice(0, 5).map(sub => (
-                                <div key={sub.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center">
-                                  <div>
-                                    <p className="font-bold text-white">{sub.playerName}</p>
-                                    <p className="text-sm text-slate-400">{sub.activityTitle}</p>
-                                  </div>
-                                  <div className={`px-3 py-1 rounded-full text-xs font-bold ${sub.status === 'approved' ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>
-                                    {sub.status.toUpperCase()}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </>
+                          <ReviewedSubmissions reviewed={reviewed} onReview={handleReview} />
                         )}
                       </>
                     )}
@@ -904,5 +899,186 @@ function SubmissionCard({ submission, onReview }) {
         </button>
       </div>
     </article>
+  );
+}
+
+function ReviewedSubmissions({ reviewed, onReview }) {
+  const [expandedId, setExpandedId] = useState(null);
+  const [showAll, setShowAll] = useState(false);
+  const [filter, setFilter] = useState('all'); // 'all', 'approved', 'rejected'
+  const [changingStatus, setChangingStatus] = useState(null);
+  const [newFeedback, setNewFeedback] = useState('');
+
+  const filtered = filter === 'all' ? reviewed : reviewed.filter(s => s.status === filter);
+  const sorted = [...filtered].sort((a, b) => new Date(b.reviewedAt || b.submittedAt) - new Date(a.reviewedAt || a.submittedAt));
+  const displayed = showAll ? sorted : sorted.slice(0, 10);
+
+  const handleChangeStatus = async (sub, newStatus) => {
+    setChangingStatus(sub.id);
+    await onReview(sub.id, newStatus, newFeedback || sub.teacherFeedback || '');
+    setChangingStatus(null);
+    setExpandedId(null);
+    setNewFeedback('');
+  };
+
+  return (
+    <>
+      <div className="flex items-center justify-between border-t border-slate-700 pt-8 mb-4">
+        <h3 className="font-bold text-slate-400 uppercase text-xs tracking-widest flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4" aria-hidden="true" /> Reviewed History ({filtered.length})
+        </h3>
+        <div className="flex gap-2" role="group" aria-label="Filter reviewed submissions">
+          {[
+            { key: 'all', label: 'All' },
+            { key: 'approved', label: 'Approved' },
+            { key: 'rejected', label: 'Rejected' },
+          ].map(f => (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${
+                filter === f.key
+                  ? 'bg-slate-600 text-white'
+                  : 'bg-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-3">
+        {displayed.map(sub => (
+          <div key={sub.id} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+            <button
+              onClick={() => { setExpandedId(expandedId === sub.id ? null : sub.id); setNewFeedback(''); }}
+              className="w-full p-4 flex justify-between items-center text-left hover:bg-slate-750 transition-colors"
+              aria-expanded={expandedId === sub.id}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${sub.status === 'approved' ? 'bg-green-400' : 'bg-red-400'}`} />
+                <div className="min-w-0">
+                  <p className="font-bold text-white truncate">{sub.playerName}</p>
+                  <p className="text-sm text-slate-400 truncate">{sub.activityTitle}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                {sub.teacherFeedback && (
+                  <span className="text-xs text-slate-500 hidden sm:inline max-w-[200px] truncate italic">"{sub.teacherFeedback}"</span>
+                )}
+                <span className="text-xs text-slate-500">{new Date(sub.reviewedAt || sub.submittedAt).toLocaleDateString()}</span>
+                <div className={`px-3 py-1 rounded-full text-xs font-bold ${sub.status === 'approved' ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>
+                  {sub.status.toUpperCase()}
+                </div>
+                {expandedId === sub.id ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+              </div>
+            </button>
+
+            {expandedId === sub.id && (
+              <div className="px-4 pb-4 border-t border-slate-700">
+                <div className="bg-slate-900/50 p-4 rounded-lg mt-3 border border-slate-800">
+                  <p className="text-xs text-slate-500 uppercase font-bold mb-2 flex items-center gap-1.5">
+                    {sub.submissionType === 'text' && <><MessageSquare className="w-3.5 h-3.5" aria-hidden="true" /> Written Response:</>}
+                    {sub.submissionType === 'link' && <>Submission Link:</>}
+                    {sub.submissionType === 'file' && <>Uploaded File:</>}
+                    {!['text', 'link', 'file'].includes(sub.submissionType) && <>Submission Content:</>}
+                  </p>
+                  {sub.submissionType === 'link' ? (
+                    <a href={sub.submissionContent} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline break-all block p-2 bg-slate-800 rounded">
+                      {sub.submissionContent}
+                    </a>
+                  ) : sub.submissionType === 'text' ? (
+                    <div className="p-3 bg-slate-800 rounded-lg text-slate-200 text-sm leading-relaxed whitespace-pre-wrap">
+                      {sub.submissionContent}
+                    </div>
+                  ) : (
+                    <div className="p-2 bg-slate-800 rounded">
+                      {sub.submissionContent ? (
+                        <div className="text-blue-400">
+                          <FileViewer content={sub.submissionContent} fileName={sub.fileName} fileType={sub.fileType} />
+                        </div>
+                      ) : (
+                        <span className="text-slate-500 italic">No content</span>
+                      )}
+                    </div>
+                  )}
+
+                  {sub.submissionNote && (
+                    <div className="mt-3 pt-3 border-t border-slate-800">
+                      <p className="text-xs text-slate-500 uppercase font-bold mb-1">Student Note:</p>
+                      <p className="text-slate-300 text-sm italic">"{sub.submissionNote}"</p>
+                    </div>
+                  )}
+                </div>
+
+                {sub.teacherFeedback && (
+                  <div className="mt-3 p-3 bg-slate-700/50 rounded-lg">
+                    <p className="text-xs text-slate-500 uppercase font-bold mb-1">Your Feedback:</p>
+                    <p className="text-slate-300 text-sm">"{sub.teacherFeedback}"</p>
+                  </div>
+                )}
+
+                <div className="mt-3 p-3 bg-slate-700/30 rounded-lg border border-slate-600">
+                  <p className="text-xs text-slate-400 font-bold uppercase mb-2">Change Decision</p>
+                  <div className="flex gap-3 items-end">
+                    <div className="flex-1">
+                      <label htmlFor={`revised-feedback-${sub.id}`} className="sr-only">Updated feedback</label>
+                      <input
+                        id={`revised-feedback-${sub.id}`}
+                        type="text"
+                        value={newFeedback}
+                        onChange={e => setNewFeedback(e.target.value)}
+                        placeholder={sub.teacherFeedback || 'Update feedback (optional)'}
+                        className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                    {sub.status === 'approved' ? (
+                      <button
+                        onClick={() => handleChangeStatus(sub, 'rejected')}
+                        disabled={changingStatus === sub.id}
+                        className="bg-red-900/50 hover:bg-red-900 text-red-200 border border-red-800 px-4 py-2 rounded-lg font-bold text-sm transition-colors disabled:opacity-50"
+                      >
+                        {changingStatus === sub.id ? 'Updating...' : 'Change to Rejected'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleChangeStatus(sub, 'approved')}
+                        disabled={changingStatus === sub.id}
+                        className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors disabled:opacity-50"
+                      >
+                        {changingStatus === sub.id ? 'Updating...' : `Change to Approved (+${sub.xp} XP)`}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-2 flex gap-4 text-xs text-slate-500">
+                  <span>Submitted: {new Date(sub.submittedAt).toLocaleString()}</span>
+                  {sub.reviewedAt && <span>Reviewed: {new Date(sub.reviewedAt).toLocaleString()}</span>}
+                  <span>XP: {sub.xp}</span>
+                  {sub.isBoss && <span className="text-orange-400 font-bold">Boss Challenge</span>}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      {sorted.length > 10 && !showAll && (
+        <button
+          onClick={() => setShowAll(true)}
+          className="mt-4 w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-xl text-sm font-bold transition-colors"
+        >
+          Show All ({sorted.length - 10} more)
+        </button>
+      )}
+      {showAll && sorted.length > 10 && (
+        <button
+          onClick={() => setShowAll(false)}
+          className="mt-4 w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-xl text-sm font-bold transition-colors"
+        >
+          Show Less
+        </button>
+      )}
+    </>
   );
 }
