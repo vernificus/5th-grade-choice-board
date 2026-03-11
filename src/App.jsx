@@ -3,7 +3,7 @@ import {
   Gamepad2, Mic, BarChart3, Palette, CheckCircle2, Trophy, Rocket, Info, X, PlayCircle,
   Star, Gift, Swords, Users, User, Sparkles, Zap, Shield, Crown, Target,
   Upload, Link, Link2, Clock, CheckCheck, XCircle, ClipboardList, Lock, Eye, FileText, LogOut,
-  MessageSquare, Pencil
+  MessageSquare, Pencil, BookOpen
 } from 'lucide-react';
 import { useGameState } from './hooks/useGameState';
 import {
@@ -18,7 +18,7 @@ import Avatar3D, { AvatarColorSwatch, AvatarPreviewHead } from './components/Ava
 import Leaderboard from './components/Leaderboard';
 import { realBackend as backend } from './services/realBackend';
 
-const IconMap = { Mic, BarChart3, Palette };
+const IconMap = { Mic, BarChart3, Palette, BookOpen };
 
 // ============== PLAYER STATS BAR ==============
 function PlayerStats({ gameState, getCurrentLevel, getNextLevelXp, onOpenProfile, onOpenMysteryBox, onOpenSubmissions, pendingSubmissions }) {
@@ -1101,7 +1101,7 @@ function AchievementModal({ achievement, onClose }) {
 
 // ============== ACTIVITY CARD ==============
 function ActivityCard({ path, selectedOption, onSelect, completedActivities, pendingActivities }) {
-  const IconComponent = IconMap[path.icon];
+  const IconComponent = IconMap[path.icon] || BookOpen;
 
   return (
     <section className="flex flex-col gap-4" aria-labelledby={`path-title-${path.id}`}>
