@@ -1459,7 +1459,15 @@ function GameContent() {
           hasPendingSubmission={hasPendingBoss}
         />
 
-        <main id="main-content" className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12" aria-label="Learning paths">
+        <main
+          id="main-content"
+          className={`grid grid-cols-1 gap-6 mb-12 ${
+            learningPaths.length === 4 ? 'md:grid-cols-4' :
+            learningPaths.length === 2 ? 'md:grid-cols-2' :
+            'md:grid-cols-3'
+          }`}
+          aria-label="Learning paths"
+        >
           {learningPaths.map((path) => (
             <ActivityCard
               key={path.id}
