@@ -11,6 +11,7 @@ import Avatar3D from './Avatar3D';
 import { FileViewer } from './FileViewer';
 import ActivityEditor from './ActivityEditor';
 import RosterManager from './RosterManager';
+import ChoiceBoardExport from './ChoiceBoardExport';
 
 export default function TeacherPortal() {
   const { user, logout } = useAuth();
@@ -407,15 +408,18 @@ export default function TeacherPortal() {
                       <p className="text-3xl font-black text-green-400">{students.length > 0 ? Math.round(students.reduce((sum, s) => sum + (s.xp || 0), 0) / students.length) : 0}</p>
                       <p className="text-slate-400 text-xs uppercase font-bold">Avg XP</p>
                     </div>
-                    <div className="ml-auto">
-                      <button
-                        onClick={handleResetClassActivities}
-                        className="flex items-center gap-2 px-4 py-2 bg-orange-600/20 hover:bg-orange-600/40 border border-orange-500/50 text-orange-300 rounded-lg text-sm font-bold transition-colors"
-                        aria-label="Reset activity completion for all students"
-                      >
-                        <RotateCcw className="w-4 h-4" aria-hidden="true" /> Reset Activities
-                      </button>
-                      <p className="text-xs text-slate-500 mt-1">Auto-resets Mondays at 7am</p>
+                    <div className="ml-auto flex items-start gap-3">
+                      <ChoiceBoardExport classId={selectedClass.id} className={selectedClass.name} />
+                      <div>
+                        <button
+                          onClick={handleResetClassActivities}
+                          className="flex items-center gap-2 px-4 py-2 bg-orange-600/20 hover:bg-orange-600/40 border border-orange-500/50 text-orange-300 rounded-lg text-sm font-bold transition-colors"
+                          aria-label="Reset activity completion for all students"
+                        >
+                          <RotateCcw className="w-4 h-4" aria-hidden="true" /> Reset Activities
+                        </button>
+                        <p className="text-xs text-slate-500 mt-1">Auto-resets Mondays at 7am</p>
+                      </div>
                     </div>
                   </div>
                 </div>
