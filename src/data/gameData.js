@@ -89,7 +89,14 @@ export const AVATAR_ITEMS = {
     { id: 'red', name: 'Fire Red', cost: 75 },
     { id: 'yellow', name: 'Golden', cost: 100 },
     { id: 'pink', name: 'Bubblegum', cost: 75 },
+    { id: 'orange', name: 'Sunset Orange', cost: 75 },
+    { id: 'teal', name: 'Teal Wave', cost: 75 },
+    { id: 'black', name: 'Shadow', cost: 100 },
+    { id: 'white', name: 'Arctic', cost: 100 },
     { id: 'rainbow', name: 'Rainbow', cost: 200 },
+    { id: 'lava', name: 'Lava Flow', cost: 250 },
+    { id: 'ice', name: 'Ice Crystal', cost: 250 },
+    { id: 'galaxy', name: 'Galaxy', cost: 300 },
   ],
   hats: [
     { id: 'none', name: 'No Hat', cost: 0 },
@@ -98,6 +105,9 @@ export const AVATAR_ITEMS = {
     { id: 'wizard', name: 'Wizard Hat', cost: 100 },
     { id: 'party', name: 'Party Hat', cost: 75 },
     { id: 'headphones', name: 'Headphones', cost: 100 },
+    { id: 'tophat', name: 'Top Hat', cost: 125 },
+    { id: 'viking', name: 'Viking Helm', cost: 175 },
+    { id: 'beanie', name: 'Cozy Beanie', cost: 75 },
   ],
   accessories: [
     { id: 'none', name: 'None', cost: 0 },
@@ -106,6 +116,8 @@ export const AVATAR_ITEMS = {
     { id: 'fire', name: 'Fire Aura', cost: 100 },
     { id: 'sparkle', name: 'Sparkles', cost: 125 },
     { id: 'lightning', name: 'Lightning Bolt', cost: 150 },
+    { id: 'cape', name: 'Hero Cape', cost: 175 },
+    { id: 'shield', name: 'Knight Shield', cost: 200 },
   ],
   faces: [
     { id: 'happy', name: 'Happy', cost: 0 },
@@ -114,6 +126,9 @@ export const AVATAR_ITEMS = {
     { id: 'determined', name: 'Determined', cost: 50 },
     { id: 'smart', name: 'Smart', cost: 75 },
     { id: 'ninja', name: 'Ninja', cost: 100 },
+    { id: 'wink', name: 'Wink', cost: 50 },
+    { id: 'angry', name: 'Battle Cry', cost: 75 },
+    { id: 'sleepy', name: 'Sleepy', cost: 50 },
   ],
 };
 

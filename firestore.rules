@@ -63,6 +63,19 @@ service cloud.firestore {
       allow update: if isAuthenticated() && isTeacherOfClass(resource.data.classId);
     }
 
+    // CUSTOM REWARDS (subcollection of classes)
+    match /classes/{classId}/customRewards/{rewardId} {
+      allow read: if true;
+      allow create, update, delete: if isAuthenticated() && isTeacherOfClass(classId);
+    }
+
+    // REWARD REDEMPTIONS (subcollection of classes)
+    match /classes/{classId}/redemptions/{redemptionId} {
+      allow read: if true;
+      allow create: if true; // Students (unauthenticated) can redeem
+      allow update: if isAuthenticated() && isTeacherOfClass(classId);
+    }
+
     // ACTIVITY LIBRARY
     match /activity_library/{activityId} {
       // Authenticated teachers can read all library activities
