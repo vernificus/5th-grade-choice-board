@@ -53,6 +53,7 @@ service cloud.firestore {
       allow create: if true;
       allow read: if true;
       allow update: if true;
+      allow delete: if isAuthenticated();
     }
 
     // SUBMISSIONS
