@@ -1016,6 +1016,8 @@ function AvatarBuilder({ gameState, getCurrentLevel, onBuy, onEquip, onClose, on
                   { minLevel: 3, label: 'Aura Glow', desc: 'Energy surrounds you' },
                   { minLevel: 5, label: 'Armor Up', desc: 'Shoulder guards + float' },
                   { minLevel: 7, label: 'Mythic Wings', desc: 'Wings + epic aura' },
+                  { minLevel: 15, label: 'Ascended', desc: 'Particle trail' },
+                  { minLevel: 20, label: 'Godly', desc: 'Crown halo' },
                 ].map((tier) => (
                   <div key={tier.minLevel} className={`flex items-center gap-2 ${currentLevel.level >= tier.minLevel ? 'text-yellow-400' : 'text-slate-500'}`}>
                     <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center text-[8px] font-bold ${currentLevel.level >= tier.minLevel ? 'border-yellow-400 bg-yellow-400/20' : 'border-slate-600'}`}>
