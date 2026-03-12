@@ -237,9 +237,15 @@ export function useGameState() {
           unlocked = (updatedState.pathCompletions?.path2 || 0) >= 5;
           break;
         case 'level_5':
+        case 'level_10':
+        case 'level_15':
+        case 'level_20':
+        case 'level_25': {
+          const requiredLevel = parseInt(achievement.id.split('_')[1]);
           const level = LEVELS.reduce((acc, l) => updatedState.xp >= l.xpRequired ? l : acc, LEVELS[0]);
-          unlocked = level.level >= 5;
+          unlocked = level.level >= requiredLevel;
           break;
+        }
         case 'boss_slayer':
           unlocked = updatedState.completedBossChallenges.length >= 1;
           break;

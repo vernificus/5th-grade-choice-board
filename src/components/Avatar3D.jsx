@@ -19,14 +19,19 @@ const SKIN_COLORS = {
 };
 
 function getEvolution(level) {
-  if (level >= 7) return 4;
-  if (level >= 5) return 3;
-  if (level >= 3) return 2;
+  if (level >= 20) return 6; // Godly - double wings + crown aura
+  if (level >= 15) return 5; // Ascended - enhanced wings + particles
+  if (level >= 7) return 4;  // Mythic wings
+  if (level >= 5) return 3;  // Armor + float
+  if (level >= 3) return 2;  // Aura glow
   return 1;
 }
 
 function getAuraColor(level) {
-  if (level >= 7) return '#F687B3';
+  if (level >= 20) return '#F6E05E'; // Gold
+  if (level >= 15) return '#FC8181'; // Crimson
+  if (level >= 10) return '#F687B3'; // Pink
+  if (level >= 7) return '#B794F4';  // Purple
   if (level >= 6) return '#ED8936';
   if (level >= 5) return '#ECC94B';
   if (level >= 4) return '#B794F4';
@@ -694,8 +699,33 @@ export default function Avatar3D({ avatar = {}, level = 1, size = 'md', animate 
           </rect>
         )}
 
-        {/* Wings for evo 4 (level 7+) */}
+        {/* Wings for evo 4+ (level 7+) */}
         {evo >= 4 && <Wings color={auraColor} animate={animate} />}
+
+        {/* Ascending particle trail for evo 5+ (level 15+) */}
+        {evo >= 5 && (
+          <g opacity="0.6">
+            {[{ x: 60, d: 2.5 }, { x: 85, d: 3 }, { x: 115, d: 2.8 }, { x: 140, d: 3.2 }].map((p, i) => (
+              <rect key={i} x={p.x} y={260} width={4} height={4} fill={auraColor}>
+                {animate && <animateTransform attributeName="transform" type="translate" values={`0,0;0,-${80 + i * 20}`} dur={`${p.d}s`} repeatCount="indefinite" />}
+                {animate && <animate attributeName="opacity" values="0.8;0" dur={`${p.d}s`} repeatCount="indefinite" />}
+              </rect>
+            ))}
+          </g>
+        )}
+
+        {/* Crown halo for evo 6 (level 20+) */}
+        {evo >= 6 && (
+          <g>
+            <rect x="80" y="22" width="40" height="4" fill="#F6E05E" opacity="0.6">
+              {animate && <animate attributeName="opacity" values="0.4;0.8;0.4" dur="2s" repeatCount="indefinite" />}
+            </rect>
+            <rect x="88" y="18" width="24" height="4" fill="#F6E05E" opacity="0.5" />
+            <rect x="86" y="14" width="6" height="4" fill="#F6E05E" opacity="0.7" />
+            <rect x="108" y="14" width="6" height="4" fill="#F6E05E" opacity="0.7" />
+            <rect x="96" y="10" width="8" height="4" fill="#F6E05E" opacity="0.8" />
+          </g>
+        )}
 
         {/* Ground shadow - blocky */}
         <rect x={100 - 26 - evo * 3} y="268" width={52 + evo * 6} height="6" fill="rgba(0,0,0,0.2)" />
