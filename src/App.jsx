@@ -872,30 +872,69 @@ function TrophyCase({ achievements, onClose }) {
 }
 
 // ============== AVATAR BUILDER ==============
-function AvatarBuilder({ gameState, getCurrentLevel, onBuy, onEquip, onClose, onSetName }) {
+function AvatarBuilder({ gameState, getCurrentLevel, onBuy, onEquip, onClose, onSetName, classId, userId }) {
   const [activeTab, setActiveTab] = useState('colors');
   const [editingName, setEditingName] = useState(false);
   const [tempName, setTempName] = useState(gameState.playerName);
+  const [hoveredItem, setHoveredItem] = useState(null);
+  const [rewardsShopItems, setRewardsShopItems] = useState([]);
+  const [redeemingItem, setRedeemingItem] = useState(null);
+  const [redeemConfirm, setRedeemConfirm] = useState(false);
   const currentLevel = getCurrentLevel ? getCurrentLevel() : { level: 1 };
 
+  // Load teacher custom rewards for this class
+  useEffect(() => {
+    if (classId) {
+      backend.getCustomRewards(classId).then(items => {
+        setRewardsShopItems(items.filter(i => i.active !== false));
+      }).catch(() => {});
+    }
+  }, [classId]);
+
   const tabs = [
-    { id: 'colors', label: 'Skin' },
-    { id: 'hats', label: 'Headgear' },
-    { id: 'accessories', label: 'Effects' },
-    { id: 'faces', label: 'Expression' },
+    { id: 'colors', label: 'Skin', icon: '🎨' },
+    { id: 'hats', label: 'Headgear', icon: '🎩' },
+    { id: 'accessories', label: 'Effects', icon: '✨' },
+    { id: 'faces', label: 'Expression', icon: '😎' },
+    ...(rewardsShopItems.length > 0 ? [{ id: 'rewards', label: 'Rewards', icon: '🎁' }] : []),
   ];
 
-  const items = AVATAR_ITEMS[activeTab] || [];
+  const items = activeTab === 'rewards' ? [] : (AVATAR_ITEMS[activeTab] || []);
 
-  // Build a preview avatar with an item temporarily applied
-  const previewAvatar = (item) => {
-    const category = activeTab.slice(0, -1); // colors→color, hats→hat, etc.
-    return { ...gameState.avatar, [category]: item.id };
+  // Preview avatar: show hovered item if any, otherwise current equipped
+  const previewAvatar = hoveredItem
+    ? { ...gameState.avatar, ...hoveredItem }
+    : gameState.avatar;
+
+  const handleRedeemReward = async (item) => {
+    if (gameState.coins < item.cost) return;
+    setRedeemingItem(item);
+    setRedeemConfirm(true);
+  };
+
+  const confirmRedeem = async () => {
+    if (!redeemingItem || !classId) return;
+    try {
+      await backend.redeemCustomReward(classId, redeemingItem.id, {
+        studentId: userId,
+        studentName: gameState.playerName,
+        itemName: redeemingItem.name,
+        cost: redeemingItem.cost,
+        directions: redeemingItem.directions,
+      });
+      // Deduct coins via the onBuy mechanism - use a special non-equip buy
+      onBuy(`reward_${redeemingItem.id}`, redeemingItem.cost);
+      setRedeemConfirm(false);
+      setRedeemingItem(null);
+      alert('Reward redeemed! Your teacher will be notified. Follow the directions to claim your reward.');
+    } catch (error) {
+      alert('Error redeeming reward: ' + error.message);
+    }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="avatar-dialog-title" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
-      <div className="bg-slate-800 border-2 border-yellow-500 rounded-2xl max-w-2xl w-full p-6 max-h-[95vh] overflow-y-auto">
+      <div className="bg-slate-800 border-2 border-yellow-500 rounded-2xl max-w-3xl w-full p-6 max-h-[95vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 id="avatar-dialog-title" className="text-2xl font-black uppercase italic flex items-center gap-2">
             <User className="w-8 h-8 text-yellow-500" aria-hidden="true" /> My Avatar
@@ -907,12 +946,17 @@ function AvatarBuilder({ gameState, getCurrentLevel, onBuy, onEquip, onClose, on
 
         {/* Avatar preview + info side by side */}
         <div className="flex flex-col sm:flex-row items-center gap-6 mb-6">
-          {/* Large avatar preview */}
-          <div className="flex-shrink-0 bg-slate-900/50 rounded-2xl p-4 border border-slate-700">
-            <Avatar3D avatar={gameState.avatar} level={currentLevel.level} size="lg" animate={true} />
+          {/* Large avatar preview with hover preview */}
+          <div className="flex-shrink-0 bg-slate-900/50 rounded-2xl p-4 border border-slate-700 relative">
+            <Avatar3D avatar={previewAvatar} level={currentLevel.level} size="lg" animate={true} />
+            {hoveredItem && (
+              <div className="absolute bottom-1 left-1/2 -translate-x-1/2 bg-yellow-500 text-slate-900 text-[10px] font-bold px-2 py-0.5 rounded">
+                Preview
+              </div>
+            )}
           </div>
 
-          {/* Player info + level evolution info */}
+          {/* Player info + currently equipped summary */}
           <div className="flex-1 text-center sm:text-left">
             {editingName ? (
               <div className="flex gap-2 justify-center sm:justify-start mb-3">
@@ -936,10 +980,30 @@ function AvatarBuilder({ gameState, getCurrentLevel, onBuy, onEquip, onClose, on
               </button>
             )}
 
-            <div className="flex items-center gap-3 justify-center sm:justify-start mb-4">
+            <div className="flex items-center gap-3 justify-center sm:justify-start mb-3">
               <div className="flex items-center gap-1 text-yellow-400">
                 <Star className="w-4 h-4 fill-yellow-400" aria-hidden="true" />
                 <span className="font-bold">{gameState.coins} coins</span>
+              </div>
+              <span className="text-slate-600">|</span>
+              <span className="text-xs text-slate-400">{gameState.ownedItems.length} items owned</span>
+            </div>
+
+            {/* Currently equipped items summary */}
+            <div className="bg-slate-700/50 rounded-lg p-3 border border-slate-600 mb-3">
+              <p className="text-xs text-slate-400 uppercase tracking-widest font-bold mb-2">Currently Equipped</p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {[
+                  { label: 'Skin', value: AVATAR_ITEMS.colors.find(c => c.id === gameState.avatar.color)?.name || 'Default' },
+                  { label: 'Hat', value: AVATAR_ITEMS.hats.find(h => h.id === gameState.avatar.hat)?.name || 'None' },
+                  { label: 'Effect', value: AVATAR_ITEMS.accessories.find(a => a.id === gameState.avatar.accessory)?.name || 'None' },
+                  { label: 'Face', value: AVATAR_ITEMS.faces.find(f => f.id === gameState.avatar.face)?.name || 'Happy' },
+                ].map(slot => (
+                  <div key={slot.label} className="flex items-center gap-1.5">
+                    <span className="text-slate-500">{slot.label}:</span>
+                    <span className="text-yellow-400 font-bold">{slot.value}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -967,58 +1031,127 @@ function AvatarBuilder({ gameState, getCurrentLevel, onBuy, onEquip, onClose, on
         </div>
 
         {/* Shop tabs */}
-        <div className="flex gap-2 mb-4" role="tablist" aria-label="Avatar customization categories">
+        <div className="flex gap-1.5 mb-4 overflow-x-auto" role="tablist" aria-label="Avatar customization categories">
           {tabs.map(tab => (
             <button
               key={tab.id}
               role="tab"
               aria-selected={activeTab === tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 py-2 rounded-lg font-bold text-sm transition-colors ${activeTab === tab.id ? 'bg-yellow-500 text-slate-900' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+              className={`flex-1 py-2 px-3 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${
+                activeTab === tab.id
+                  ? tab.id === 'rewards' ? 'bg-green-500 text-slate-900' : 'bg-yellow-500 text-slate-900'
+                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              }`}
             >
-              {tab.label}
+              <span className="mr-1">{tab.icon}</span> {tab.label}
             </button>
           ))}
         </div>
 
-        {/* Item grid with avatar previews */}
-        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-56 overflow-y-auto" role="tabpanel" aria-label={`${activeTab} items`}>
-          {items.map(item => {
-            const owned = gameState.ownedItems.includes(item.id);
-            const equipped = gameState.avatar[activeTab.slice(0, -1)] === item.id;
-
-            return (
-              <button
-                key={item.id}
-                onClick={() => owned ? onEquip(activeTab.slice(0, -1), item.id) : gameState.coins >= item.cost && onBuy(item.id, item.cost)}
-                disabled={!owned && gameState.coins < item.cost}
-                className={`p-3 rounded-xl border-2 flex flex-col items-center gap-1.5 transition-colors ${
-                  equipped ? 'border-yellow-500 bg-yellow-500/20' :
-                  owned ? 'border-green-500/60 bg-slate-700' :
-                  gameState.coins >= item.cost ? 'border-slate-600 bg-slate-700 hover:border-slate-500' :
-                  'border-slate-700 bg-slate-800 opacity-50'
-                }`}
-                aria-label={`${item.name}${equipped ? ' (equipped)' : owned ? ' (owned)' : item.cost > 0 ? ` - ${item.cost} coins` : ''}`}
-              >
-                {/* Preview */}
-                <div className="flex items-center justify-center" aria-hidden="true">
-                  {activeTab === 'colors' ? (
-                    <AvatarColorSwatch colorId={item.id} size={36} />
-                  ) : (
-                    <AvatarPreviewHead avatar={gameState.avatar} overrides={{ [activeTab.slice(0, -1)]: item.id }} size={44} />
-                  )}
+        {/* Rewards tab content */}
+        {activeTab === 'rewards' ? (
+          <div className="space-y-3 max-h-64 overflow-y-auto" role="tabpanel" aria-label="Teacher rewards">
+            <p className="text-xs text-slate-400 mb-2">Spend coins on real-world rewards from your teacher!</p>
+            {rewardsShopItems.map(item => (
+              <div key={item.id} className="bg-slate-700 rounded-xl p-4 border border-slate-600 flex items-center gap-4">
+                <div className="flex-shrink-0 w-12 h-12 bg-green-500/20 border-2 border-green-500 rounded-lg flex items-center justify-center text-2xl">
+                  🎁
                 </div>
-                <p className="text-xs font-bold truncate w-full text-center">{item.name}</p>
-                {!owned && item.cost > 0 && (
-                  <p className="text-xs text-yellow-400 font-bold">{item.cost} coins</p>
-                )}
-                {equipped && <p className="text-[10px] text-green-400 font-bold uppercase">Equipped</p>}
-                {owned && !equipped && <p className="text-[10px] text-slate-500 font-bold uppercase">Owned</p>}
-              </button>
-            );
-          })}
-        </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-white">{item.name}</p>
+                  <p className="text-xs text-slate-400 line-clamp-2">{item.description}</p>
+                </div>
+                <div className="flex-shrink-0 text-right">
+                  <p className="text-yellow-400 font-bold text-sm">{item.cost} coins</p>
+                  <button
+                    onClick={() => handleRedeemReward(item)}
+                    disabled={gameState.coins < item.cost}
+                    className={`mt-1 px-3 py-1 rounded-lg text-xs font-bold ${
+                      gameState.coins >= item.cost
+                        ? 'bg-green-500 text-slate-900 hover:bg-green-400'
+                        : 'bg-slate-600 text-slate-400 cursor-not-allowed'
+                    }`}
+                  >
+                    {gameState.coins >= item.cost ? 'Redeem' : 'Not enough'}
+                  </button>
+                </div>
+              </div>
+            ))}
+            {rewardsShopItems.length === 0 && (
+              <p className="text-slate-500 text-center py-4">No rewards available yet. Ask your teacher!</p>
+            )}
+          </div>
+        ) : (
+          /* Item grid with avatar previews */
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 max-h-64 overflow-y-auto" role="tabpanel" aria-label={`${activeTab} items`}>
+            {items.map(item => {
+              const owned = gameState.ownedItems.includes(item.id);
+              const equipped = gameState.avatar[activeTab.slice(0, -1)] === item.id;
+
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => owned ? onEquip(activeTab.slice(0, -1), item.id) : gameState.coins >= item.cost && onBuy(item.id, item.cost)}
+                  onMouseEnter={() => setHoveredItem({ [activeTab.slice(0, -1)]: item.id })}
+                  onMouseLeave={() => setHoveredItem(null)}
+                  disabled={!owned && gameState.coins < item.cost}
+                  className={`p-2.5 rounded-xl border-2 flex flex-col items-center gap-1 transition-all ${
+                    equipped ? 'border-yellow-500 bg-yellow-500/20 ring-2 ring-yellow-500/30' :
+                    owned ? 'border-green-500/60 bg-green-500/10' :
+                    gameState.coins >= item.cost ? 'border-slate-600 bg-slate-700 hover:border-slate-400 hover:scale-105' :
+                    'border-slate-700 bg-slate-800 opacity-40'
+                  }`}
+                  aria-label={`${item.name}${equipped ? ' (equipped)' : owned ? ' (owned)' : item.cost > 0 ? ` - ${item.cost} coins` : ''}`}
+                >
+                  {/* Preview */}
+                  <div className="flex items-center justify-center" aria-hidden="true">
+                    {activeTab === 'colors' ? (
+                      <AvatarColorSwatch colorId={item.id} size={36} />
+                    ) : (
+                      <AvatarPreviewHead avatar={gameState.avatar} overrides={{ [activeTab.slice(0, -1)]: item.id }} size={44} />
+                    )}
+                  </div>
+                  <p className="text-xs font-bold truncate w-full text-center">{item.name}</p>
+                  {!owned && item.cost > 0 && (
+                    <p className="text-xs text-yellow-400 font-bold flex items-center gap-0.5">
+                      <Star className="w-3 h-3 fill-yellow-400" aria-hidden="true" />{item.cost}
+                    </p>
+                  )}
+                  {equipped && (
+                    <p className="text-[10px] text-yellow-400 font-bold uppercase bg-yellow-400/10 px-1.5 rounded">Equipped</p>
+                  )}
+                  {owned && !equipped && (
+                    <p className="text-[10px] text-green-400 font-bold uppercase">Owned</p>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
+
+      {/* Redeem confirmation modal */}
+      {redeemConfirm && redeemingItem && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/80" onClick={() => setRedeemConfirm(false)}>
+          <div className="bg-slate-800 border-2 border-green-500 rounded-2xl max-w-sm w-full p-6" onClick={e => e.stopPropagation()}>
+            <h4 className="text-xl font-black text-green-400 mb-3">Redeem Reward?</h4>
+            <p className="font-bold text-white mb-1">{redeemingItem.name}</p>
+            <p className="text-sm text-slate-400 mb-3">{redeemingItem.description}</p>
+            <p className="text-yellow-400 font-bold mb-3">Cost: {redeemingItem.cost} coins</p>
+            {redeemingItem.directions && (
+              <div className="bg-slate-700 rounded-lg p-3 mb-4 border border-slate-600">
+                <p className="text-xs text-slate-400 uppercase font-bold mb-1">How to redeem:</p>
+                <p className="text-sm text-white">{redeemingItem.directions}</p>
+              </div>
+            )}
+            <div className="flex gap-3">
+              <button onClick={() => setRedeemConfirm(false)} className="flex-1 py-2 bg-slate-700 text-white rounded-lg font-bold">Cancel</button>
+              <button onClick={confirmRedeem} className="flex-1 py-2 bg-green-500 text-slate-900 rounded-lg font-bold">Confirm</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1522,7 +1655,7 @@ function GameContent() {
 
       {showLeaderboard && user?.classId && <Leaderboard classId={user.classId} currentPlayerId={user.id} onClose={() => setShowLeaderboard(false)} />}
       {showTrophyCase && <TrophyCase achievements={gameState.unlockedAchievements} onClose={() => setShowTrophyCase(false)} />}
-      {showAvatarBuilder && <AvatarBuilder gameState={gameState} getCurrentLevel={getCurrentLevel} onBuy={buyAvatarItem} onEquip={equipAvatarItem} onClose={() => setShowAvatarBuilder(false)} onSetName={setPlayerName} />}
+      {showAvatarBuilder && <AvatarBuilder gameState={gameState} getCurrentLevel={getCurrentLevel} onBuy={buyAvatarItem} onEquip={equipAvatarItem} onClose={() => setShowAvatarBuilder(false)} onSetName={setPlayerName} classId={user?.classId} userId={user?.id} />}
       {showMySubmissions && <MySubmissions submissions={submissions} onClose={() => setShowMySubmissions(false)} />}
       {showMysteryReward && <MysteryBoxModal reward={showMysteryReward} onClose={() => setShowMysteryReward(null)} />}
       {showLevelUp && newLevel && <LevelUpModal level={newLevel} avatar={gameState.avatar} onClose={() => setShowLevelUp(false)} />}

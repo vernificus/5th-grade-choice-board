@@ -496,6 +496,16 @@ export default function TeacherPortal() {
                   >
                     Sharing
                   </button>
+                  <button
+                    role="tab"
+                    aria-selected={activeTab === 'rewards'}
+                    aria-controls="tabpanel-rewards"
+                    id="tab-rewards"
+                    onClick={() => setActiveTab('rewards')}
+                    className={`pb-4 px-2 font-bold ${activeTab === 'rewards' ? 'text-green-400 border-b-2 border-green-400' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    <span className="flex items-center gap-1"><Gift className="w-4 h-4" aria-hidden="true" /> Rewards</span>
+                  </button>
                 </div>
 
                 {activeTab === 'activities' && (
@@ -834,6 +844,12 @@ export default function TeacherPortal() {
                 {activeTab === 'guilds' && (
                   <div role="tabpanel" id="tabpanel-guilds" aria-labelledby="tab-guilds">
                     <GuildManagement classId={selectedClass.id} students={students} onStudentsUpdated={() => backend.getStudents(selectedClass.id).then(setStudents)} />
+                  </div>
+                )}
+
+                {activeTab === 'rewards' && (
+                  <div role="tabpanel" id="tabpanel-rewards" aria-labelledby="tab-rewards">
+                    <RewardsManager classId={selectedClass.id} />
                   </div>
                 )}
 
@@ -1234,6 +1250,288 @@ function GuildManagement({ classId, students, onStudentsUpdated }) {
             >
               {awardingTrophy ? 'Awarding...' : 'Award Trophy to Guild Hall'}
             </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============== REWARDS MANAGER (TEACHER) ==============
+function RewardsManager({ classId }) {
+  const [rewards, setRewards] = useState([]);
+  const [redemptions, setRedemptions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [editingReward, setEditingReward] = useState(null);
+  const [form, setForm] = useState({ name: '', description: '', cost: '', directions: '' });
+
+  useEffect(() => {
+    loadData();
+    const unsub = backend.subscribeToRedemptions(classId, (data) => {
+      setRedemptions(data);
+    });
+    return () => unsub();
+  }, [classId]);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const items = await backend.getCustomRewards(classId);
+      setRewards(items);
+    } catch (e) {
+      console.error("Failed to load rewards", e);
+    }
+    setLoading(false);
+  };
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    if (!form.name.trim() || !form.cost) return;
+    try {
+      if (editingReward) {
+        await backend.updateCustomReward(classId, editingReward.id, {
+          name: form.name.trim(),
+          description: form.description.trim(),
+          cost: parseInt(form.cost),
+          directions: form.directions.trim(),
+        });
+      } else {
+        await backend.createCustomReward(classId, {
+          name: form.name.trim(),
+          description: form.description.trim(),
+          cost: parseInt(form.cost),
+          directions: form.directions.trim(),
+        });
+      }
+      setForm({ name: '', description: '', cost: '', directions: '' });
+      setShowCreateForm(false);
+      setEditingReward(null);
+      loadData();
+    } catch (error) {
+      alert('Error saving reward: ' + error.message);
+    }
+  };
+
+  const handleDelete = async (rewardId) => {
+    if (!window.confirm('Delete this reward item?')) return;
+    try {
+      await backend.deleteCustomReward(classId, rewardId);
+      loadData();
+    } catch (error) {
+      alert('Error deleting reward: ' + error.message);
+    }
+  };
+
+  const handleToggleActive = async (reward) => {
+    try {
+      await backend.updateCustomReward(classId, reward.id, { active: !reward.active });
+      loadData();
+    } catch (error) {
+      alert('Error updating reward: ' + error.message);
+    }
+  };
+
+  const handleFulfill = async (redemptionId) => {
+    try {
+      await backend.updateRedemption(classId, redemptionId, { status: 'fulfilled' });
+    } catch (error) {
+      alert('Error: ' + error.message);
+    }
+  };
+
+  const pendingRedemptions = redemptions.filter(r => r.status === 'pending');
+  const fulfilledRedemptions = redemptions.filter(r => r.status === 'fulfilled');
+
+  if (loading) return <p className="text-slate-500 text-center py-8">Loading rewards...</p>;
+
+  return (
+    <div className="space-y-6">
+      {/* Pending Redemptions Alert */}
+      {pendingRedemptions.length > 0 && (
+        <div className="bg-green-900/30 border-2 border-green-500/50 rounded-xl p-4">
+          <h3 className="text-lg font-bold text-green-400 mb-3 flex items-center gap-2">
+            <Gift className="w-5 h-5" aria-hidden="true" /> Pending Redemptions ({pendingRedemptions.length})
+          </h3>
+          <p className="text-sm text-slate-400 mb-4">Students have redeemed these rewards and are waiting for fulfillment.</p>
+          <div className="space-y-3">
+            {pendingRedemptions.map(r => (
+              <div key={r.id} className="bg-slate-800 rounded-lg p-4 border border-slate-700 flex items-center gap-4">
+                <div className="flex-shrink-0 w-10 h-10 bg-green-500/20 border-2 border-green-500 rounded-lg flex items-center justify-center text-xl">
+                  🎁
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-white">{r.studentName} redeemed <span className="text-green-400">{r.itemName}</span></p>
+                  <p className="text-xs text-slate-400">Cost: {r.cost} coins</p>
+                  {r.directions && <p className="text-xs text-yellow-400 mt-1">Directions: {r.directions}</p>}
+                  <p className="text-xs text-slate-500 mt-1">
+                    {r.redeemedAt?.toDate ? new Date(r.redeemedAt.toDate()).toLocaleString() : r.redeemedAt ? new Date(r.redeemedAt).toLocaleString() : 'Just now'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleFulfill(r.id)}
+                  className="px-4 py-2 bg-green-500 text-slate-900 rounded-lg font-bold text-sm hover:bg-green-400"
+                >
+                  Mark Fulfilled
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Manage Reward Items */}
+      <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-bold text-white flex items-center gap-2">
+            <Gift className="w-5 h-5 text-green-400" aria-hidden="true" /> Custom Reward Items
+          </h3>
+          <button
+            onClick={() => { setShowCreateForm(true); setEditingReward(null); setForm({ name: '', description: '', cost: '', directions: '' }); }}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg font-bold text-sm"
+          >
+            <Plus className="w-4 h-4" aria-hidden="true" /> Add Reward
+          </button>
+        </div>
+        <p className="text-slate-400 text-sm mb-4">
+          Create real-world reward items that students can purchase with their coins. You'll be notified when a student redeems one.
+        </p>
+
+        {showCreateForm && (
+          <form onSubmit={handleCreate} className="bg-slate-700/50 rounded-xl p-4 border border-slate-600 mb-4 space-y-3">
+            <h4 className="font-bold text-white text-sm">{editingReward ? 'Edit Reward' : 'New Reward Item'}</h4>
+            <div>
+              <label htmlFor="reward-name" className="block text-xs text-slate-400 mb-1">Reward Name *</label>
+              <input
+                id="reward-name"
+                type="text"
+                value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="e.g. Homework Pass, Extra Credit, Lunch with Teacher"
+                maxLength={60}
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:border-green-500 outline-none"
+                required
+              />
+            </div>
+            <div>
+              <label htmlFor="reward-desc" className="block text-xs text-slate-400 mb-1">Description</label>
+              <input
+                id="reward-desc"
+                type="text"
+                value={form.description}
+                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Brief description students will see"
+                maxLength={120}
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:border-green-500 outline-none"
+              />
+            </div>
+            <div>
+              <label htmlFor="reward-cost" className="block text-xs text-slate-400 mb-1">Coin Cost *</label>
+              <input
+                id="reward-cost"
+                type="number"
+                min="1"
+                value={form.cost}
+                onChange={e => setForm(f => ({ ...f, cost: e.target.value }))}
+                placeholder="e.g. 200"
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:border-green-500 outline-none"
+                required
+              />
+            </div>
+            <div>
+              <label htmlFor="reward-directions" className="block text-xs text-slate-400 mb-1">Redemption Directions</label>
+              <textarea
+                id="reward-directions"
+                value={form.directions}
+                onChange={e => setForm(f => ({ ...f, directions: e.target.value }))}
+                placeholder="Instructions for the student on how to redeem this reward (e.g. 'Show this to your teacher during class')"
+                maxLength={300}
+                rows={3}
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:border-green-500 outline-none resize-none"
+              />
+            </div>
+            <div className="flex gap-3">
+              <button type="button" onClick={() => { setShowCreateForm(false); setEditingReward(null); }} className="flex-1 py-2 bg-slate-600 text-white rounded-lg font-bold text-sm">
+                Cancel
+              </button>
+              <button type="submit" className="flex-1 py-2 bg-green-500 text-slate-900 rounded-lg font-bold text-sm">
+                {editingReward ? 'Save Changes' : 'Create Reward'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {rewards.length === 0 && !showCreateForm ? (
+          <div className="text-center py-8 text-slate-500 border-2 border-dashed border-slate-700 rounded-xl">
+            <Gift className="w-12 h-12 mx-auto mb-2 opacity-20" aria-hidden="true" />
+            No custom rewards yet. Add one to let students spend coins on real-world items!
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {rewards.map(reward => (
+              <div key={reward.id} className={`rounded-xl p-4 border flex items-center gap-4 ${reward.active !== false ? 'bg-slate-700/50 border-slate-600' : 'bg-slate-800/50 border-slate-700 opacity-60'}`}>
+                <div className="flex-shrink-0 w-12 h-12 bg-green-500/20 border-2 border-green-500/50 rounded-lg flex items-center justify-center text-2xl">
+                  🎁
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-white">{reward.name} {reward.active === false && <span className="text-xs text-red-400">(Inactive)</span>}</p>
+                  {reward.description && <p className="text-xs text-slate-400">{reward.description}</p>}
+                  {reward.directions && <p className="text-xs text-yellow-400/70 mt-0.5">Directions: {reward.directions}</p>}
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-yellow-400 font-bold">{reward.cost} coins</p>
+                </div>
+                <div className="flex gap-1 flex-shrink-0">
+                  <button
+                    onClick={() => {
+                      setEditingReward(reward);
+                      setForm({ name: reward.name, description: reward.description || '', cost: String(reward.cost), directions: reward.directions || '' });
+                      setShowCreateForm(true);
+                    }}
+                    className="p-2 text-slate-400 hover:text-blue-400 transition-colors"
+                    aria-label={`Edit ${reward.name}`}
+                  >
+                    <Edit className="w-4 h-4" aria-hidden="true" />
+                  </button>
+                  <button
+                    onClick={() => handleToggleActive(reward)}
+                    className={`p-2 transition-colors ${reward.active !== false ? 'text-green-400 hover:text-red-400' : 'text-slate-500 hover:text-green-400'}`}
+                    aria-label={reward.active !== false ? `Deactivate ${reward.name}` : `Activate ${reward.name}`}
+                  >
+                    <Eye className="w-4 h-4" aria-hidden="true" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(reward.id)}
+                    className="p-2 text-slate-400 hover:text-red-400 transition-colors"
+                    aria-label={`Delete ${reward.name}`}
+                  >
+                    <Trash2 className="w-4 h-4" aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Fulfilled History */}
+      {fulfilledRedemptions.length > 0 && (
+        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+          <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+            <CheckCircle2 className="w-5 h-5 text-green-400" aria-hidden="true" /> Fulfilled Redemptions ({fulfilledRedemptions.length})
+          </h3>
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {fulfilledRedemptions.map(r => (
+              <div key={r.id} className="flex items-center gap-3 p-3 bg-slate-700/30 rounded-lg text-sm">
+                <span className="text-green-400">✓</span>
+                <span className="text-white font-bold">{r.studentName}</span>
+                <span className="text-slate-400">redeemed</span>
+                <span className="text-green-400">{r.itemName}</span>
+                <span className="text-slate-500 ml-auto text-xs">
+                  {r.updatedAt?.toDate ? new Date(r.updatedAt.toDate()).toLocaleDateString() : ''}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       )}

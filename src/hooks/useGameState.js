@@ -501,6 +501,14 @@ export function useGameState() {
   }, [gameState.pendingMysteryBoxes, checkAchievements]);
 
   const buyAvatarItem = useCallback((itemId, cost) => {
+     // Reward redemptions (prefixed with reward_) only deduct coins
+     if (itemId.startsWith('reward_')) {
+        if (gameState.coins >= cost) {
+          setGameState(prev => ({ ...prev, coins: prev.coins - cost }));
+          return true;
+        }
+        return false;
+     }
      if (gameState.coins >= cost && !gameState.ownedItems.includes(itemId)) {
         setGameState(prev => ({ ...prev, coins: prev.coins - cost, ownedItems: [...prev.ownedItems, itemId] }));
         return true;

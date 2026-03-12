@@ -718,4 +718,103 @@ export const realBackend = {
       throw error;
     }
   },
+
+  // ================= CUSTOM REWARDS (TEACHER-CREATED SHOP ITEMS) =================
+  async getCustomRewards(classId) {
+    try {
+      const q = query(collection(db, "classes", classId, "customRewards"));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (error) {
+      console.error("Error getting custom rewards:", error);
+      return [];
+    }
+  },
+
+  async createCustomReward(classId, rewardData) {
+    try {
+      const docRef = await addDoc(collection(db, "classes", classId, "customRewards"), {
+        ...rewardData,
+        active: true,
+        createdAt: serverTimestamp(),
+      });
+      return { id: docRef.id, ...rewardData, active: true };
+    } catch (error) {
+      console.error("Error creating custom reward:", error);
+      throw error;
+    }
+  },
+
+  async updateCustomReward(classId, rewardId, updates) {
+    try {
+      const docRef = doc(db, "classes", classId, "customRewards", rewardId);
+      await updateDoc(docRef, updates);
+      return { id: rewardId, ...updates };
+    } catch (error) {
+      console.error("Error updating custom reward:", error);
+      throw error;
+    }
+  },
+
+  async deleteCustomReward(classId, rewardId) {
+    try {
+      await deleteDoc(doc(db, "classes", classId, "customRewards", rewardId));
+      return true;
+    } catch (error) {
+      console.error("Error deleting custom reward:", error);
+      throw error;
+    }
+  },
+
+  // ================= REWARD REDEMPTIONS =================
+  async redeemCustomReward(classId, rewardId, redemptionData) {
+    try {
+      const docRef = await addDoc(collection(db, "classes", classId, "redemptions"), {
+        rewardId,
+        ...redemptionData,
+        status: 'pending', // pending, fulfilled, cancelled
+        redeemedAt: serverTimestamp(),
+      });
+      return { id: docRef.id, rewardId, ...redemptionData, status: 'pending' };
+    } catch (error) {
+      console.error("Error redeeming reward:", error);
+      throw error;
+    }
+  },
+
+  async getRedemptions(classId) {
+    try {
+      const q = query(collection(db, "classes", classId, "redemptions"));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (error) {
+      console.error("Error getting redemptions:", error);
+      return [];
+    }
+  },
+
+  subscribeToRedemptions(classId, callback) {
+    const q = query(collection(db, "classes", classId, "redemptions"));
+    return onSnapshot(q, (snapshot) => {
+      const redemptions = [];
+      snapshot.forEach((d) => {
+        redemptions.push({ id: d.id, ...d.data() });
+      });
+      callback(redemptions);
+    });
+  },
+
+  async updateRedemption(classId, redemptionId, updates) {
+    try {
+      const docRef = doc(db, "classes", classId, "redemptions", redemptionId);
+      await updateDoc(docRef, {
+        ...updates,
+        updatedAt: serverTimestamp(),
+      });
+      return true;
+    } catch (error) {
+      console.error("Error updating redemption:", error);
+      throw error;
+    }
+  },
 };
