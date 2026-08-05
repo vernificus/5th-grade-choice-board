@@ -4,7 +4,7 @@ import { realBackend as backend } from '../services/realBackend';
 import {
   Users, Plus, LogOut, BookOpen, ClipboardList, CheckCircle2,
   XCircle, Clock, ChevronRight, GraduationCap, Copy, Trash2, Edit, RefreshCw, RotateCcw, Link, Save, Gift,
-  Share2, UserPlus, X, Mail, MessageSquare, Sparkles, Star, Trophy, ChevronDown, ChevronUp, BarChart3, Eye, Zap
+  Share2, UserPlus, X, Mail, MessageSquare, Sparkles, Star, Trophy, ChevronDown, ChevronUp, BarChart3, Eye, Zap, Building2, Layers
 } from 'lucide-react';
 import { LEVELS, ACHIEVEMENTS, GUILDS, GUILD_TROPHIES, LEARNING_PATHS, MAX_CATEGORIES, PATH_COLORS } from '../data/gameData';
 import Avatar3D from './Avatar3D';
@@ -37,6 +37,101 @@ export default function TeacherPortal() {
   const [spotlightMessage, setSpotlightMessage] = useState('');
   const [spotlightCategory, setSpotlightCategory] = useState('star_student');
   const [savingSpotlight, setSavingSpotlight] = useState(false);
+
+  // Org Choice Board Template state
+  const [orgTemplates, setOrgTemplates] = useState([]);
+  const [showOrgTemplatesModal, setShowOrgTemplatesModal] = useState(false);
+  const [selectedTemplateToApply, setSelectedTemplateToApply] = useState(null);
+  const [targetClassIdsToApply, setTargetClassIdsToApply] = useState([]);
+  const [applyingTemplate, setApplyingTemplate] = useState(false);
+  const [inspectingTemplate, setInspectingTemplate] = useState(null);
+  const [importingSingleActivityId, setImportingSingleActivityId] = useState(null);
+
+  const loadOrgTemplates = async () => {
+    if (!user.organizationId) return;
+    try {
+      const tmps = await backend.getOrgTemplates(user.organizationId);
+      setOrgTemplates(tmps);
+    } catch (e) {
+      console.error("Failed to load organization templates:", e);
+    }
+  };
+
+  const handleImportSingleActivity = async (template, pathId, activity) => {
+    if (!selectedClass) {
+      alert('Please select a class first.');
+      return;
+    }
+    setImportingSingleActivityId(activity.id);
+    try {
+      const singleActivityPath = [{
+        id: pathId,
+        title: template.categoryNames?.[pathId] || '',
+        subtitle: template.categorySubtitles?.[pathId] || '',
+        options: [activity]
+      }];
+      await backend.importTemplateActivitiesToClass(
+        selectedClass.id,
+        singleActivityPath,
+        template.categoryNames || {},
+        template.categorySubtitles || {}
+      );
+      alert(`Imported "${activity.title}" into "${selectedClass.name}" without removing existing activities!`);
+      const updatedClass = await backend.getClass(selectedClass.id);
+      if (updatedClass) {
+        setSelectedClass(updatedClass);
+        setClasses(prev => prev.map(c => c.id === updatedClass.id ? updatedClass : c));
+      }
+    } catch (err) {
+      alert('Error importing activity: ' + err.message);
+    }
+    setImportingSingleActivityId(null);
+  };
+
+  const handleImportAllTemplateActivities = async (template) => {
+    if (!selectedClass) {
+      alert('Please select a class first.');
+      return;
+    }
+    if (!window.confirm(`Import all activities from "${template.title}" into "${selectedClass.name}"? Existing activities will NOT be removed.`)) return;
+    setApplyingTemplate(true);
+    try {
+      await backend.importTemplateActivitiesToClass(
+        selectedClass.id,
+        template.activities || [],
+        template.categoryNames || {},
+        template.categorySubtitles || {}
+      );
+      alert(`Successfully imported all activities from "${template.title}" into "${selectedClass.name}"!`);
+      setShowOrgTemplatesModal(false);
+      const updatedClass = await backend.getClass(selectedClass.id);
+      if (updatedClass) {
+        setSelectedClass(updatedClass);
+        setClasses(prev => prev.map(c => c.id === updatedClass.id ? updatedClass : c));
+      }
+    } catch (err) {
+      alert('Error importing template activities: ' + err.message);
+    }
+    setApplyingTemplate(false);
+  };
+
+  const handleApplyOrgTemplate = async () => {
+    if (!selectedTemplateToApply || targetClassIdsToApply.length === 0) {
+      alert('Please select a template and at least one class.');
+      return;
+    }
+    setApplyingTemplate(true);
+    try {
+      await backend.applyTemplateToClasses(selectedTemplateToApply.id, targetClassIdsToApply);
+      alert(`Applied "${selectedTemplateToApply.title}" to ${targetClassIdsToApply.length} class(es)!`);
+      setShowOrgTemplatesModal(false);
+      setSelectedTemplateToApply(null);
+      handleRefresh();
+    } catch (e) {
+      alert('Error applying template: ' + e.message);
+    }
+    setApplyingTemplate(false);
+  };
 
   useEffect(() => {
     loadClasses();
@@ -273,7 +368,15 @@ export default function TeacherPortal() {
               <GraduationCap className="w-8 h-8 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-black uppercase italic">Teacher Portal</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-3xl font-black uppercase italic">Teacher Portal</h1>
+                {user.organizationName && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-950/60 text-blue-300 border border-blue-800/40 rounded-lg text-xs font-semibold">
+                    <Building2 className="w-3.5 h-3.5 text-blue-400" />
+                    {user.organizationName}
+                  </span>
+                )}
+              </div>
               <p className="text-slate-400">Welcome, {user.name}</p>
             </div>
           </div>
@@ -509,10 +612,35 @@ export default function TeacherPortal() {
                 </div>
 
                 {activeTab === 'activities' && (
-                  <div role="tabpanel" id="tabpanel-activities" aria-labelledby="tab-activities"><ActivityEditor
-                    classId={selectedClass.id}
-                    onSave={() => alert('Activities updated!')}
-                  /></div>
+                  <div role="tabpanel" id="tabpanel-activities" aria-labelledby="tab-activities">
+                    {user.organizationId && (
+                      <div className="mb-6 p-4 bg-slate-800 rounded-xl border border-slate-700 flex flex-wrap items-center justify-between gap-4 shadow-md">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 bg-purple-950/80 text-purple-400 border border-purple-800/40 rounded-xl">
+                            <Layers className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-white text-sm">Organization Choice Board Templates</h4>
+                            <p className="text-xs text-slate-400">Import master choice boards configured for {user.organizationName || 'your organization'}</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            loadOrgTemplates();
+                            if (selectedClass) setTargetClassIdsToApply([selectedClass.id]);
+                            setShowOrgTemplatesModal(true);
+                          }}
+                          className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl transition-all shadow-md flex items-center gap-2"
+                        >
+                          <Layers className="w-4 h-4" /> Browse Org Templates
+                        </button>
+                      </div>
+                    )}
+                    <ActivityEditor
+                      classId={selectedClass.id}
+                      onSave={() => alert('Activities updated!')}
+                    />
+                  </div>
                 )}
 
                 {activeTab === 'categories' && (
@@ -901,6 +1029,137 @@ export default function TeacherPortal() {
 
         </div>
       </div>
+
+      {/* ================= MODAL: BROWSE & APPLY ORG TEMPLATES ================= */}
+      {showOrgTemplatesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="browse-templates-title">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-4xl w-full p-6 shadow-2xl my-auto max-h-[92vh] flex flex-col">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-purple-400">Organization Choice Boards</span>
+                <h3 id="browse-templates-title" className="text-xl font-bold text-white">{user.organizationName || 'Organization'} Master Templates</h3>
+              </div>
+              <button onClick={() => setShowOrgTemplatesModal(false)} aria-label="Close templates modal" className="text-slate-400 hover:text-white text-xl font-bold p-1">✕</button>
+            </div>
+
+            <div className="space-y-6 overflow-y-auto flex-1 pr-1">
+              <p className="text-xs text-slate-400">
+                Browse master choice board templates configured for your organization. You can choose specific individual activities to import into <strong>{selectedClass?.name || 'your class'}</strong> without removing any of your current activities!
+              </p>
+
+              {orgTemplates.length === 0 ? (
+                <div className="text-center py-12 text-slate-500 border border-slate-800 rounded-xl">
+                  No organization templates found for {user.organizationName || 'your organization'}.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {orgTemplates.map(tmp => {
+                    const isInspecting = inspectingTemplate?.id === tmp.id;
+                    const isSelectedFull = selectedTemplateToApply?.id === tmp.id;
+
+                    return (
+                      <div key={tmp.id} className="bg-slate-800 border border-slate-700 rounded-xl p-5 shadow-lg space-y-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <h4 className="text-lg font-bold text-white flex items-center gap-2">
+                              <Layers className="w-5 h-5 text-purple-400" />
+                              {tmp.title}
+                            </h4>
+                            <p className="text-xs text-slate-400 mt-1">{tmp.description || 'No description provided.'}</p>
+                            <div className="flex items-center gap-3 mt-2 text-[11px] text-slate-500">
+                              <span>Created by: {tmp.createdBy || 'Admin'}</span>
+                              <span>&middot;</span>
+                              <span>{tmp.activities?.length || 0} Categories</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <button
+                              onClick={() => setInspectingTemplate(isInspecting ? null : tmp)}
+                              className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold text-xs rounded-lg transition-colors border border-slate-600 flex items-center gap-1.5"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              {isInspecting ? 'Hide Activities' : 'Choose Specific Activities'}
+                            </button>
+                            <button
+                              onClick={() => handleImportAllTemplateActivities(tmp)}
+                              disabled={applyingTemplate}
+                              className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-lg transition-colors shadow flex items-center gap-1.5 disabled:opacity-50"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              Import All Activities to Class
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Selective Activity Inspector */}
+                        {isInspecting && (
+                          <div className="mt-4 pt-4 border-t border-slate-700/80 space-y-4 bg-slate-900/60 p-4 rounded-xl">
+                            <h5 className="text-xs font-bold text-yellow-400 uppercase tracking-wider">
+                              Activities in "{tmp.title}" &mdash; Click "+ Import" to add to {selectedClass?.name}
+                            </h5>
+
+                            <div className="space-y-4">
+                              {(tmp.activities || []).map(path => {
+                                const categoryName = tmp.categoryNames?.[path.id] || path.title;
+                                const categorySub = tmp.categorySubtitles?.[path.id] || path.subtitle;
+
+                                return (
+                                  <div key={path.id} className="bg-slate-800 rounded-lg border border-slate-700 p-3 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                      <div>
+                                        <span className="font-bold text-sm text-white">{categoryName}</span>
+                                        {categorySub && <span className="text-xs text-slate-400 ml-2 italic">({categorySub})</span>}
+                                      </div>
+                                      <span className="text-[11px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full">
+                                        {path.options?.length || 0} activities
+                                      </span>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1">
+                                      {(path.options || []).map(opt => (
+                                        <div key={opt.id} className="p-2.5 bg-slate-950/80 rounded-lg border border-slate-800 flex items-start justify-between gap-2">
+                                          <div className="min-w-0">
+                                            <div className="font-bold text-xs text-white truncate">{opt.title}</div>
+                                            <div className="text-[11px] text-slate-400 line-clamp-1">{opt.desc}</div>
+                                            <div className="text-[10px] text-yellow-400 font-semibold mt-0.5">{opt.type} &middot; {opt.xp} XP</div>
+                                          </div>
+                                          <button
+                                            onClick={() => handleImportSingleActivity(tmp, path.id, opt)}
+                                            disabled={importingSingleActivityId === opt.id}
+                                            className="px-2.5 py-1 bg-green-600 hover:bg-green-500 text-white font-bold text-[11px] rounded transition-colors whitespace-nowrap flex items-center gap-1 disabled:opacity-50 flex-shrink-0"
+                                          >
+                                            <Plus className="w-3 h-3" />
+                                            {importingSingleActivityId === opt.id ? 'Importing...' : 'Import'}
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800 mt-4">
+              <button
+                type="button"
+                onClick={() => setShowOrgTemplatesModal(false)}
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-semibold"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

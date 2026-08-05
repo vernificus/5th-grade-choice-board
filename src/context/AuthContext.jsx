@@ -27,9 +27,9 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const registerTeacher = async (name, email, password) => {
+  const registerTeacher = async (name, email, password, organizationId = null, organizationName = '') => {
     try {
-      const teacher = await backend.registerTeacher(name, email, password);
+      const teacher = await backend.registerTeacher(name, email, password, organizationId, organizationName);
       setUser(teacher);
       sessionStorage.setItem('lvlup_user', JSON.stringify(teacher));
       return { success: true };

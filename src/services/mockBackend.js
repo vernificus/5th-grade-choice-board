@@ -13,7 +13,9 @@ const getDB = () => {
     teachers: [],
     classes: [],
     students: [],
-    submissions: []
+    submissions: [],
+    organizations: [],
+    orgTemplates: []
   };
 };
 
@@ -43,12 +45,19 @@ export const mockBackend = {
   async loginTeacher(email, password) {
     await wait(DELAY);
     const db = getDB();
-    const teacher = db.teachers.find(t => t.email === email && t.password === password); // In real app, hash password!
+    const teacher = db.teachers.find(t => t.email === email && t.password === password);
     if (!teacher) throw new Error('Invalid credentials');
-    return { ...teacher, role: 'teacher' };
+    return {
+      id: teacher.id,
+      name: teacher.name,
+      email: teacher.email,
+      role: teacher.role || 'teacher',
+      organizationId: teacher.organizationId || null,
+      organizationName: teacher.organizationName || ''
+    };
   },
 
-  async registerTeacher(name, email, password) {
+  async registerTeacher(name, email, password, organizationId = null, organizationName = '') {
     await wait(DELAY);
     const db = getDB();
     if (db.teachers.find(t => t.email === email)) throw new Error('Email already exists');
@@ -57,12 +66,21 @@ export const mockBackend = {
       id: 't_' + Date.now(),
       name,
       email,
-      password, // In real app, hash password!
+      password,
+      role: 'teacher',
+      organizationId: organizationId || null,
+      organizationName: organizationName || ''
     };
 
     db.teachers.push(newTeacher);
+
+    if (organizationId && db.organizations) {
+      const org = db.organizations.find(o => o.id === organizationId);
+      if (org) org.teacherCount = (org.teacherCount || 0) + 1;
+    }
+
     saveDB(db);
-    return { ...newTeacher, role: 'teacher' };
+    return { ...newTeacher };
   },
 
   // ================= CLASS MANAGEMENT =================
@@ -225,5 +243,52 @@ export const mockBackend = {
       return db.submissions[index];
     }
     throw new Error('Submission not found');
+  },
+
+  async updateTeacherRole(teacherId, newRole) {
+    await wait(DELAY);
+    const db = getDB();
+    const teacher = db.teachers.find(t => t.id === teacherId);
+    if (teacher) {
+      teacher.role = newRole;
+      saveDB(db);
+      return true;
+    }
+    return false;
+  },
+
+  async importTemplateActivitiesToClass(classId, activitiesToImport, categoryNames = {}, categorySubtitles = {}) {
+    await wait(DELAY);
+    const db = getDB();
+    const cls = db.classes.find(c => c.id === classId);
+    if (cls) {
+      let currentActivities = cls.activities || [];
+      const updatedActivities = currentActivities.map(path => {
+        const matchingImportPath = activitiesToImport.find(p => p.id === path.id);
+        if (!matchingImportPath || !matchingImportPath.options) return path;
+
+        const existingOptIds = new Set((path.options || []).map(o => o.id));
+        const newOptions = matchingImportPath.options.filter(o => !existingOptIds.has(o.id));
+
+        return {
+          ...path,
+          options: [...(path.options || []), ...newOptions]
+        };
+      });
+
+      const existingPathIds = new Set(updatedActivities.map(p => p.id));
+      activitiesToImport.forEach(importPath => {
+        if (!existingPathIds.has(importPath.id)) {
+          updatedActivities.push(importPath);
+        }
+      });
+
+      cls.activities = updatedActivities;
+      cls.categoryNames = { ...(cls.categoryNames || {}), ...categoryNames };
+      cls.categorySubtitles = { ...(cls.categorySubtitles || {}), ...categorySubtitles };
+      saveDB(db);
+      return { success: true };
+    }
+    throw new Error('Class not found');
   }
 };

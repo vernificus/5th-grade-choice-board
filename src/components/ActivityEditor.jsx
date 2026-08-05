@@ -4,8 +4,9 @@ import { LEARNING_PATHS as DEFAULT_PATHS, PATH_COLORS } from '../data/gameData';
 import {
   Save, Plus, Trash2, BookOpen, Search, X, ChevronDown, ChevronUp,
   GripVertical, Link2, ExternalLink, Eye, EyeOff, Bold, Italic, Type,
-  ArrowUp, ArrowDown, Copy, ChevronRight
+  ArrowUp, ArrowDown, Copy, ChevronRight, FileText
 } from 'lucide-react';
+import DocumentImporterModal from './DocumentImporterModal';
 
 // Normalize a step to object form for backward compatibility.
 // Old steps are plain strings; new steps are { text, link?, linkText? }.
@@ -262,8 +263,8 @@ function ActivityPreview({ activity }) {
   );
 }
 
-export default function ActivityEditor({ classId, onSave, onCancel }) {
-  const [learningPaths, setLearningPaths] = useState(DEFAULT_PATHS);
+export default function ActivityEditor({ classId, paths: passedPaths, onChange, categoryNames, categorySubtitles, onSave, onCancel }) {
+  const [learningPaths, setLearningPaths] = useState(passedPaths || DEFAULT_PATHS);
   const [libraryActivities, setLibraryActivities] = useState([]);
   const [showLibrary, setShowLibrary] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -280,59 +281,106 @@ export default function ActivityEditor({ classId, onSave, onCancel }) {
   // Show/hide preview
   const [showPreview, setShowPreview] = useState(false);
 
+  // Helper to update state AND trigger onChange prop for parent component
+  const updateLearningPaths = (updater) => {
+    setLearningPaths(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (onChange) onChange(next);
+      return next;
+    });
+  };
+
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      const classDoc = await backend.getClass(classId);
-      if (classDoc) {
-        let paths = classDoc.activities && classDoc.activities.length > 0
-          ? classDoc.activities
-          : DEFAULT_PATHS;
+    if (passedPaths) {
+      let paths = passedPaths.map(path => ({
+        ...path,
+        title: categoryNames?.[path.id] || path.title,
+        subtitle: categorySubtitles?.[path.id] || path.subtitle,
+      }));
 
-        if (classDoc.categoryNames || classDoc.categorySubtitles) {
-          paths = paths.map(path => ({
-            ...path,
-            title: classDoc.categoryNames?.[path.id] || path.title,
-            subtitle: classDoc.categorySubtitles?.[path.id] || path.subtitle,
-          }));
-
-          // Add any extra categories that don't have activity paths yet
-          if (classDoc.categoryNames) {
-            const existingIds = new Set(paths.map(p => p.id));
-            Object.keys(classDoc.categoryNames).forEach((key, idx) => {
-              if (!existingIds.has(key)) {
-                paths.push({
-                  id: key,
-                  title: classDoc.categoryNames[key],
-                  subtitle: classDoc.categorySubtitles?.[key] || '',
-                  icon: 'BookOpen',
-                  color: PATH_COLORS[(paths.length) % PATH_COLORS.length],
-                  options: [],
-                });
-              }
+      // Add any extra categories defined in categoryNames
+      if (categoryNames) {
+        const existingIds = new Set(paths.map(p => p.id));
+        Object.keys(categoryNames).forEach(key => {
+          if (!existingIds.has(key)) {
+            paths.push({
+              id: key,
+              title: categoryNames[key],
+              subtitle: categorySubtitles?.[key] || '',
+              icon: 'BookOpen',
+              color: PATH_COLORS[(paths.length) % PATH_COLORS.length],
+              options: [],
             });
           }
-        }
-
-        // Normalize all steps to object form
-        paths = paths.map(path => ({
-          ...path,
-          options: path.options.map(opt => ({
-            ...opt,
-            steps: normalizeSteps(opt.steps),
-          })),
-        }));
-
-        setLearningPaths(paths);
-        // Expand all path sections by default
-        const expanded = {};
-        paths.forEach(p => { expanded[p.id] = true; });
-        setExpandedPaths(expanded);
+        });
       }
-      setLoading(false);
-    };
-    loadData();
-  }, [classId]);
+
+      paths = paths.map(path => ({
+        ...path,
+        options: (path.options || []).map(opt => ({
+          ...opt,
+          steps: normalizeSteps(opt.steps),
+        })),
+      }));
+
+      setLearningPaths(paths);
+      const expanded = {};
+      paths.forEach(p => { expanded[p.id] = true; });
+      setExpandedPaths(prev => ({ ...expanded, ...prev }));
+    } else if (classId) {
+      const loadData = async () => {
+        setLoading(true);
+        const classDoc = await backend.getClass(classId);
+        if (classDoc) {
+          let paths = classDoc.activities && classDoc.activities.length > 0
+            ? classDoc.activities
+            : DEFAULT_PATHS;
+
+          if (classDoc.categoryNames || classDoc.categorySubtitles) {
+            paths = paths.map(path => ({
+              ...path,
+              title: classDoc.categoryNames?.[path.id] || path.title,
+              subtitle: classDoc.categorySubtitles?.[path.id] || path.subtitle,
+            }));
+
+            // Add any extra categories that don't have activity paths yet
+            if (classDoc.categoryNames) {
+              const existingIds = new Set(paths.map(p => p.id));
+              Object.keys(classDoc.categoryNames).forEach((key, idx) => {
+                if (!existingIds.has(key)) {
+                  paths.push({
+                    id: key,
+                    title: classDoc.categoryNames[key],
+                    subtitle: classDoc.categorySubtitles?.[key] || '',
+                    icon: 'BookOpen',
+                    color: PATH_COLORS[(paths.length) % PATH_COLORS.length],
+                    options: [],
+                  });
+                }
+              });
+            }
+          }
+
+          // Normalize all steps to object form
+          paths = paths.map(path => ({
+            ...path,
+            options: path.options.map(opt => ({
+              ...opt,
+              steps: normalizeSteps(opt.steps),
+            })),
+          }));
+
+          setLearningPaths(paths);
+          // Expand all path sections by default
+          const expanded = {};
+          paths.forEach(p => { expanded[p.id] = true; });
+          setExpandedPaths(expanded);
+        }
+        setLoading(false);
+      };
+      loadData();
+    }
+  }, [classId, passedPaths, categoryNames, categorySubtitles]);
 
   const loadLibrary = async () => {
     setLoading(true);
@@ -343,7 +391,7 @@ export default function ActivityEditor({ classId, onSave, onCancel }) {
   };
 
   const handleUpdateActivity = (pathId, activityId, field, value) => {
-    setLearningPaths(prev => prev.map(path => {
+    updateLearningPaths(prev => prev.map(path => {
       if (path.id !== pathId) return path;
       return {
         ...path,
@@ -357,7 +405,7 @@ export default function ActivityEditor({ classId, onSave, onCancel }) {
 
   const handleAddActivity = (pathId) => {
     const newId = `${pathId}-${Date.now()}`;
-    setLearningPaths(prev => prev.map(path => {
+    updateLearningPaths(prev => prev.map(path => {
       if (path.id !== pathId) return path;
       return {
         ...path,
@@ -380,7 +428,7 @@ export default function ActivityEditor({ classId, onSave, onCancel }) {
 
   const handleDeleteActivity = (pathId, activityId) => {
     if (!window.confirm('Delete this activity?')) return;
-    setLearningPaths(prev => prev.map(path => {
+    updateLearningPaths(prev => prev.map(path => {
       if (path.id !== pathId) return path;
       return {
         ...path,
@@ -402,7 +450,7 @@ export default function ActivityEditor({ classId, onSave, onCancel }) {
       title: `${activity.title} (Copy)`,
       steps: activity.steps.map(s => ({ ...normalizeStep(s) })),
     };
-    setLearningPaths(prev => prev.map(path => {
+    updateLearningPaths(prev => prev.map(path => {
       if (path.id !== pathId) return path;
       return { ...path, options: [...path.options, duplicate] };
     }));
@@ -423,7 +471,7 @@ export default function ActivityEditor({ classId, onSave, onCancel }) {
   };
 
   const handleImport = (activity, targetPathId) => {
-    setLearningPaths(prev => prev.map(path => {
+    updateLearningPaths(prev => prev.map(path => {
       if (path.id !== targetPathId) return path;
       const newActivity = {
         ...activity,
@@ -533,34 +581,77 @@ export default function ActivityEditor({ classId, onSave, onCancel }) {
     );
   }
 
+  // Document Importer state
+  const [showDocImporter, setShowDocImporter] = useState(false);
+
+  const handleImportDocActivities = (importedActivities) => {
+    if (!importedActivities || importedActivities.length === 0) return;
+    updateLearningPaths(prev => {
+      const updated = prev.map(p => ({ ...p, options: [...(p.options || [])] }));
+      importedActivities.forEach(act => {
+        const targetPathId = act.pathId || 'path1';
+        let targetPath = updated.find(p => p.id === targetPathId);
+        if (!targetPath) {
+          targetPath = updated[0];
+        }
+        if (targetPath) {
+          targetPath.options.push({
+            id: `${targetPath.id}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            title: act.title,
+            desc: act.desc || 'No description provided.',
+            type: act.type || 'Low Tech',
+            xp: act.xp || 100,
+            steps: act.steps && act.steps.length > 0 ? act.steps : [{ text: 'Follow activity instructions.' }],
+            proTip: act.proTip || ''
+          });
+        }
+      });
+      return updated;
+    });
+  };
+
   // ---- Main editor layout ----
   return (
     <div className="space-y-4">
       {/* Top toolbar */}
-      <div className="flex justify-between items-center bg-slate-800 p-4 rounded-xl border border-slate-700 sticky top-0 z-10 shadow-xl">
+      <div className="flex flex-wrap justify-between items-center bg-slate-800 p-4 rounded-xl border border-slate-700 sticky top-0 z-10 shadow-xl gap-3">
         <h2 className="text-xl font-bold text-white">Edit Choice Board</h2>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setShowDocImporter(true)}
+            className="flex items-center gap-2 px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-xs transition-colors shadow"
+          >
+            <FileText className="w-4 h-4" aria-hidden="true" /> Import from Doc / Google Doc
+          </button>
           <button
             onClick={loadLibrary}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold transition-colors"
+            className="flex items-center gap-2 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-xs transition-colors shadow"
           >
             <BookOpen className="w-4 h-4" aria-hidden="true" /> Browse Library
           </button>
           <button
             onClick={handleSave}
             disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg font-bold transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg font-bold text-xs transition-colors disabled:opacity-50 shadow"
           >
             <Save className="w-4 h-4" aria-hidden="true" /> {loading ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
       </div>
 
+      <DocumentImporterModal
+        isOpen={showDocImporter}
+        onClose={() => setShowDocImporter(false)}
+        onImportActivities={handleImportDocActivities}
+        categoryNames={categoryNames || {}}
+      />
+
       {/* Two-panel layout: sidebar + editor */}
-      <div className="flex gap-6 min-h-[70vh]">
+      <div className="flex flex-col lg:flex-row gap-6">
 
         {/* Left sidebar: Activity list organized by path */}
-        <div className="w-72 flex-shrink-0 space-y-3">
+        <div className="w-full lg:w-72 flex-shrink-0 space-y-3">
           {learningPaths.map(path => (
             <div key={path.id} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
               {/* Path header - collapsible */}
@@ -595,13 +686,13 @@ export default function ActivityEditor({ classId, onSave, onCancel }) {
                         }}
                         className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
                           isActive
-                            ? 'bg-blue-600/30 border border-blue-500 text-white'
+                            ? 'bg-blue-600/30 border border-blue-500 text-white font-bold'
                             : 'hover:bg-slate-700 text-slate-300 border border-transparent'
                         }`}
                         aria-current={isActive ? 'true' : undefined}
                       >
                         <div className="font-bold truncate">{activity.title}</div>
-                        <div className="text-xs text-slate-500 truncate">{activity.type} &middot; {activity.xp} XP</div>
+                        <div className="text-xs text-slate-400 truncate">{activity.type} &middot; {activity.xp} XP</div>
                       </button>
                     );
                   })}
@@ -609,7 +700,7 @@ export default function ActivityEditor({ classId, onSave, onCancel }) {
                   {/* Add activity button */}
                   <button
                     onClick={() => handleAddActivity(path.id)}
-                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 border border-dashed border-slate-600 rounded-lg text-slate-500 hover:border-slate-400 hover:text-slate-300 text-sm transition-colors"
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 border border-dashed border-slate-600 rounded-lg text-slate-400 hover:border-slate-400 hover:text-slate-200 text-sm transition-colors"
                   >
                     <Plus className="w-3.5 h-3.5" aria-hidden="true" /> Add Activity
                   </button>
@@ -622,51 +713,54 @@ export default function ActivityEditor({ classId, onSave, onCancel }) {
         {/* Right panel: Activity editor or empty state */}
         <div className="flex-1 min-w-0">
           {editingActivity ? (
-            <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+            <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-lg">
               {/* Editor header */}
-              <div className="flex items-center justify-between p-4 border-b border-slate-700 bg-slate-800/80">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-lg font-bold text-white">Edit Activity</h3>
-                  <span className="text-xs bg-slate-700 text-slate-400 px-2 py-1 rounded-full">
+              <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-slate-700 bg-slate-800/90">
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                  <h3 className="text-lg font-bold text-white truncate">Edit Activity</h3>
+                  <span className="text-xs bg-slate-700 text-slate-300 font-semibold px-2.5 py-1 rounded-full border border-slate-600 truncate max-w-[220px]">
                     {learningPaths.find(p => p.id === editingPathId)?.title}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <button
                     onClick={() => setShowPreview(!showPreview)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                      showPreview ? 'bg-blue-600/30 text-blue-400 border border-blue-500' : 'bg-slate-700 text-slate-400 hover:text-white'
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                      showPreview ? 'bg-blue-600/30 text-blue-400 border border-blue-500' : 'bg-slate-700 text-slate-300 hover:text-white border border-slate-600'
                     }`}
                     aria-pressed={showPreview}
                   >
-                    {showPreview ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    {showPreview ? 'Hide Preview' : 'Preview'}
+                    {showPreview ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    <span>{showPreview ? 'Hide Preview' : 'Preview'}</span>
                   </button>
                   <button
                     onClick={() => handleDuplicateActivity(editingPathId, editingActivity)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 text-slate-400 hover:text-white rounded-lg text-sm font-medium transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-xs font-bold transition-colors border border-slate-600"
                     aria-label="Duplicate this activity"
                   >
-                    <Copy className="w-4 h-4" /> Duplicate
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Duplicate</span>
                   </button>
                   <button
                     onClick={() => handlePublish(editingActivity)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 text-slate-400 hover:text-blue-400 rounded-lg text-sm font-medium transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 hover:text-blue-300 rounded-lg text-xs font-bold transition-colors border border-slate-600"
                     aria-label="Publish to library"
                   >
-                    <BookOpen className="w-4 h-4" /> Publish
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>Publish</span>
                   </button>
                   <button
                     onClick={() => handleDeleteActivity(editingPathId, editingActivityId)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 text-slate-400 hover:text-red-400 rounded-lg text-sm font-medium transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-red-950/60 hover:bg-red-900/80 text-red-300 rounded-lg text-xs font-bold transition-colors border border-red-800/60"
                     aria-label="Delete this activity"
                   >
-                    <Trash2 className="w-4 h-4" /> Delete
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete</span>
                   </button>
                 </div>
               </div>
 
-              <div className="p-5 space-y-6 max-h-[calc(100vh-240px)] overflow-y-auto">
+              <div className="p-5 space-y-6">
                 {/* Basic info section */}
                 <div className="space-y-4">
                   <div>

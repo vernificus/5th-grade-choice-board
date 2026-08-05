@@ -26,35 +26,92 @@ export const realBackend = {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
+      let role = 'teacher';
+      let organizationId = null;
+      let organizationName = '';
+
+      if (user.email?.toLowerCase() === 'matthew.harbert@lcps.org') {
+        role = 'admin';
+      }
+
+      try {
+        const docSnap = await getDoc(doc(db, "teachers", user.uid));
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.role) role = data.role;
+          if (data.organizationId) organizationId = data.organizationId;
+          if (data.organizationName) organizationName = data.organizationName;
+        }
+
+        // Always ensure matthew.harbert@lcps.org has admin role persisted in Firestore
+        if (user.email?.toLowerCase() === 'matthew.harbert@lcps.org') {
+          role = 'admin';
+          await setDoc(doc(db, "teachers", user.uid), {
+            name: user.displayName || 'Matthew Harbert',
+            email: user.email,
+            role: 'admin',
+            updatedAt: serverTimestamp()
+          }, { merge: true });
+        }
+      } catch (e) {
+        console.error("Error fetching teacher profile:", e);
+      }
+
       return {
         id: user.uid,
         email: user.email,
         name: user.displayName || email.split('@')[0],
-        role: 'teacher'
+        role,
+        organizationId,
+        organizationName
       };
     } catch (error) {
       throw new Error(error.message);
     }
   },
 
-  async registerTeacher(name, email, password) {
+  async registerTeacher(name, email, password, organizationId = null, organizationName = '') {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
       await updateProfile(user, { displayName: name });
 
-      await setDoc(doc(db, "teachers", user.uid), {
+      const isDefaultAdmin = email.toLowerCase() === 'matthew.harbert@lcps.org';
+      const assignedRole = isDefaultAdmin ? 'admin' : 'teacher';
+
+      const teacherData = {
         name,
         email,
+        role: assignedRole,
+        organizationId: organizationId || null,
+        organizationName: organizationName || '',
         createdAt: serverTimestamp()
-      });
+      };
+
+      await setDoc(doc(db, "teachers", user.uid), teacherData);
+
+      // Increment teacher count on organization if linked
+      if (organizationId) {
+        try {
+          const orgRef = doc(db, "organizations", organizationId);
+          const orgSnap = await getDoc(orgRef);
+          if (orgSnap.exists()) {
+            const count = orgSnap.data().teacherCount || 0;
+            await updateDoc(orgRef, { teacherCount: count + 1 });
+          }
+        } catch (e) {
+          console.error("Error updating org teacher count:", e);
+        }
+      }
 
       return {
         id: user.uid,
         email: user.email,
         name: name,
-        role: 'teacher'
+        role: 'teacher',
+        organizationId,
+        organizationName
       };
     } catch (error) {
       throw new Error(error.message);
@@ -169,7 +226,7 @@ export const realBackend = {
     }
   },
 
-  async createClass(teacherId, className) {
+  async createClass(teacherId, className, organizationId = null) {
     try {
       let code;
       let isUnique = false;
@@ -181,15 +238,64 @@ export const realBackend = {
         if (snapshot.empty) isUnique = true;
       }
 
+      let orgId = organizationId;
+      if (!orgId) {
+        try {
+          const tDoc = await getDoc(doc(db, "teachers", teacherId));
+          if (tDoc.exists() && tDoc.data().organizationId) {
+            orgId = tDoc.data().organizationId;
+          }
+        } catch (e) {
+          console.error("Could not fetch teacher org for class:", e);
+        }
+      }
+
+      let defaultActivities = null;
+      let defaultCatNames = null;
+      let defaultCatSubtitles = null;
+
+      // Default to the FIRST template created in that organization if available
+      if (orgId) {
+        try {
+          const templates = await this.getOrgTemplates(orgId);
+          if (templates && templates.length > 0) {
+            const firstTemplate = templates[0];
+            defaultActivities = firstTemplate.activities || null;
+            defaultCatNames = firstTemplate.categoryNames || null;
+            defaultCatSubtitles = firstTemplate.categorySubtitles || null;
+          }
+        } catch (e) {
+          console.error("Could not fetch org templates for default class setup:", e);
+        }
+      }
+
       const newClass = {
         teacherId,
+        organizationId: orgId || null,
         name: className,
         code,
         studentCount: 0,
+        activities: defaultActivities,
+        categoryNames: defaultCatNames,
+        categorySubtitles: defaultCatSubtitles,
         createdAt: serverTimestamp()
       };
 
       const docRef = await addDoc(collection(db, "classes"), newClass);
+
+      if (orgId) {
+        try {
+          const orgRef = doc(db, "organizations", orgId);
+          const orgSnap = await getDoc(orgRef);
+          if (orgSnap.exists()) {
+            const count = orgSnap.data().classCount || 0;
+            await updateDoc(orgRef, { classCount: count + 1 });
+          }
+        } catch (e) {
+          console.error("Error updating org class count:", e);
+        }
+      }
+
       return { id: docRef.id, ...newClass };
     } catch (error) {
       throw new Error(error.message);
@@ -817,4 +923,337 @@ export const realBackend = {
       throw error;
     }
   },
+
+  // ================= ORGANIZATIONS =================
+  async createOrganization(name, description = '') {
+    try {
+      let code;
+      let isUnique = false;
+
+      while (!isUnique) {
+        code = 'ORG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+        const q = query(collection(db, "organizations"), where("code", "==", code));
+        const snapshot = await getDocs(q);
+        if (snapshot.empty) isUnique = true;
+      }
+
+      const newOrg = {
+        name,
+        description,
+        code,
+        teacherCount: 0,
+        classCount: 0,
+        createdAt: serverTimestamp()
+      };
+
+      const docRef = await addDoc(collection(db, "organizations"), newOrg);
+      return { id: docRef.id, ...newOrg };
+    } catch (error) {
+      throw new Error("Failed to create organization: " + error.message);
+    }
+  },
+
+  async getOrganizations() {
+    try {
+      const q = query(collection(db, "organizations"));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (error) {
+      console.error("Error fetching organizations:", error);
+      return [];
+    }
+  },
+
+  async getOrganization(orgId) {
+    try {
+      const docSnap = await getDoc(doc(db, "organizations", orgId));
+      if (docSnap.exists()) {
+        return { id: docSnap.id, ...docSnap.data() };
+      }
+      return null;
+    } catch (error) {
+      console.error("Error fetching organization:", error);
+      return null;
+    }
+  },
+
+  async getOrganizationByCode(code) {
+    try {
+      const q = query(collection(db, "organizations"), where("code", "==", code.trim().toUpperCase()));
+      const snapshot = await getDocs(q);
+      if (snapshot.empty) throw new Error("Organization not found with code: " + code);
+      const d = snapshot.docs[0];
+      return { id: d.id, ...d.data() };
+    } catch (error) {
+      throw new Error(error.message);
+    }
+  },
+
+  async updateOrganization(orgId, updates) {
+    try {
+      const docRef = doc(db, "organizations", orgId);
+      await updateDoc(docRef, { ...updates, updatedAt: serverTimestamp() });
+      return { id: orgId, ...updates };
+    } catch (error) {
+      throw new Error("Error updating organization: " + error.message);
+    }
+  },
+
+  async deleteOrganization(orgId) {
+    try {
+      await deleteDoc(doc(db, "organizations", orgId));
+      return true;
+    } catch (error) {
+      throw new Error("Error deleting organization: " + error.message);
+    }
+  },
+
+  // ================= ADMIN & TEACHER USER MANAGEMENT =================
+  async getAllTeachers() {
+    try {
+      const snapshot = await getDocs(collection(db, "teachers"));
+      return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (error) {
+      console.error("Error fetching teachers:", error);
+      return [];
+    }
+  },
+
+  async getTeachersByOrganization(orgId) {
+    try {
+      const q = query(collection(db, "teachers"), where("organizationId", "==", orgId));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (error) {
+      console.error("Error fetching teachers by org:", error);
+      return [];
+    }
+  },
+
+  async assignTeacherToOrg(teacherId, organizationId, organizationName = '') {
+    try {
+      const teacherRef = doc(db, "teachers", teacherId);
+      await updateDoc(teacherRef, {
+        organizationId: organizationId || null,
+        organizationName: organizationName || '',
+        updatedAt: serverTimestamp()
+      });
+      return true;
+    } catch (error) {
+      throw new Error("Failed to assign teacher to organization: " + error.message);
+    }
+  },
+
+  async updateTeacherRole(teacherId, newRole) {
+    try {
+      const teacherRef = doc(db, "teachers", teacherId);
+      await updateDoc(teacherRef, {
+        role: newRole,
+        updatedAt: serverTimestamp()
+      });
+      return true;
+    } catch (error) {
+      throw new Error("Failed to update teacher role: " + error.message);
+    }
+  },
+
+  async createTeacherUserByAdmin(name, email, password, organizationId = null, organizationName = '', role = 'teacher') {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      await updateProfile(user, { displayName: name });
+
+      const teacherDoc = {
+        name,
+        email,
+        role: role || 'teacher',
+        organizationId: organizationId || null,
+        organizationName: organizationName || '',
+        createdAt: serverTimestamp()
+      };
+
+      await setDoc(doc(db, "teachers", user.uid), teacherDoc);
+
+      if (organizationId) {
+        const orgRef = doc(db, "organizations", organizationId);
+        const orgSnap = await getDoc(orgRef);
+        if (orgSnap.exists()) {
+          const count = orgSnap.data().teacherCount || 0;
+          await updateDoc(orgRef, { teacherCount: count + 1 });
+        }
+      }
+
+      return { id: user.uid, ...teacherDoc };
+    } catch (error) {
+      throw new Error("Failed to create teacher user: " + error.message);
+    }
+  },
+
+  // ================= ORGANIZATION CHOICE BOARD TEMPLATES =================
+  async createOrgTemplate(orgId, templateData) {
+    try {
+      const newTemplate = {
+        orgId,
+        title: templateData.title || 'Untitled Choice Board Template',
+        description: templateData.description || '',
+        activities: templateData.activities || [],
+        categoryNames: templateData.categoryNames || {},
+        categorySubtitles: templateData.categorySubtitles || {},
+        createdBy: templateData.createdBy || 'Admin',
+        createdAt: serverTimestamp()
+      };
+
+      const docRef = await addDoc(collection(db, "orgTemplates"), newTemplate);
+      return { id: docRef.id, ...newTemplate };
+    } catch (error) {
+      throw new Error("Failed to create choice board template: " + error.message);
+    }
+  },
+
+  async getOrgTemplates(orgId) {
+    try {
+      const q = query(collection(db, "orgTemplates"), where("orgId", "==", orgId));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (error) {
+      console.error("Error getting organization choice board templates:", error);
+      return [];
+    }
+  },
+
+  async updateOrgTemplate(templateId, updates) {
+    try {
+      const docRef = doc(db, "orgTemplates", templateId);
+      await updateDoc(docRef, { ...updates, updatedAt: serverTimestamp() });
+      return { id: templateId, ...updates };
+    } catch (error) {
+      throw new Error("Failed to update choice board template: " + error.message);
+    }
+  },
+
+  async deleteOrgTemplate(templateId) {
+    try {
+      await deleteDoc(doc(db, "orgTemplates", templateId));
+      return true;
+    } catch (error) {
+      throw new Error("Failed to delete choice board template: " + error.message);
+    }
+  },
+
+  async getAllClassesByOrg(orgId) {
+    try {
+      // 1. Get classes explicitly tagged with organizationId == orgId
+      const orgQuery = query(collection(db, "classes"), where("organizationId", "==", orgId));
+      const orgSnapshot = await getDocs(orgQuery);
+      const classesMap = new Map();
+      orgSnapshot.forEach(d => classesMap.set(d.id, { id: d.id, ...d.data() }));
+
+      // 2. Also query teachers in this org and include their classes
+      const teachers = await this.getTeachersByOrganization(orgId);
+      const teacherIds = teachers.map(t => t.id);
+
+      for (const tId of teacherIds) {
+        const teacherClasses = await this.getClasses(tId);
+        for (const cls of teacherClasses) {
+          if (!classesMap.has(cls.id)) {
+            classesMap.set(cls.id, cls);
+          }
+        }
+      }
+
+      return Array.from(classesMap.values());
+    } catch (error) {
+      console.error("Error getting classes by organization:", error);
+      return [];
+    }
+  },
+
+  async applyTemplateToClasses(templateId, classIds) {
+    try {
+      const templateDoc = await getDoc(doc(db, "orgTemplates", templateId));
+      if (!templateDoc.exists()) throw new Error("Template not found");
+      const templateData = templateDoc.data();
+
+      const updatePromises = classIds.map(classId => {
+        const classRef = doc(db, "classes", classId);
+        return updateDoc(classRef, {
+          activities: templateData.activities || [],
+          categoryNames: templateData.categoryNames || {},
+          categorySubtitles: templateData.categorySubtitles || {},
+          appliedTemplateId: templateId,
+          appliedTemplateTitle: templateData.title,
+          updatedAt: serverTimestamp()
+        });
+      });
+
+      await Promise.all(updatePromises);
+      return { success: true, count: classIds.length };
+    } catch (error) {
+      throw new Error("Failed to apply template to classes: " + error.message);
+    }
+  },
+
+  async applyTemplateToOrganization(orgId, templateId) {
+    try {
+      const targetClasses = await this.getAllClassesByOrg(orgId);
+      const classIds = targetClasses.map(c => c.id);
+      if (classIds.length === 0) {
+        return { success: true, count: 0 };
+      }
+      return await this.applyTemplateToClasses(templateId, classIds);
+    } catch (error) {
+      throw new Error("Failed to apply template to organization: " + error.message);
+    }
+  },
+
+  async importTemplateActivitiesToClass(classId, activitiesToImport, categoryNames = {}, categorySubtitles = {}) {
+    try {
+      const classRef = doc(db, "classes", classId);
+      const classSnap = await getDoc(classRef);
+      if (!classSnap.exists()) throw new Error("Class not found");
+
+      const classData = classSnap.data();
+      let currentActivities = classData.activities && classData.activities.length > 0
+        ? classData.activities
+        : DEFAULT_PATHS;
+
+      const mergedCategoryNames = { ...(classData.categoryNames || {}), ...categoryNames };
+      const mergedCategorySubtitles = { ...(classData.categorySubtitles || {}), ...categorySubtitles };
+
+      // Map existing path options to append new activities without deleting existing ones
+      const updatedActivities = currentActivities.map(path => {
+        const matchingImportPath = activitiesToImport.find(p => p.id === path.id);
+        if (!matchingImportPath || !matchingImportPath.options) return path;
+
+        const existingOptIds = new Set((path.options || []).map(o => o.id));
+        const newOptions = matchingImportPath.options.filter(o => !existingOptIds.has(o.id));
+
+        return {
+          ...path,
+          options: [...(path.options || []), ...newOptions]
+        };
+      });
+
+      // Add any new path IDs present in activitiesToImport that weren't in currentActivities
+      const existingPathIds = new Set(updatedActivities.map(p => p.id));
+      activitiesToImport.forEach(importPath => {
+        if (!existingPathIds.has(importPath.id)) {
+          updatedActivities.push(importPath);
+        }
+      });
+
+      await updateDoc(classRef, {
+        activities: updatedActivities,
+        categoryNames: mergedCategoryNames,
+        categorySubtitles: mergedCategorySubtitles,
+        updatedAt: serverTimestamp()
+      });
+
+      return { success: true, activities: updatedActivities, categoryNames: mergedCategoryNames, categorySubtitles: mergedCategorySubtitles };
+    } catch (error) {
+      throw new Error("Failed to import activities to class: " + error.message);
+    }
+  }
 };
+

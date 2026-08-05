@@ -13,6 +13,7 @@ import {
 import { AuthProvider, useAuth } from './context/AuthContext';
 import LoginScreen from './components/LoginScreen';
 import TeacherPortal from './components/TeacherPortal';
+import AdminPortal from './components/AdminPortal';
 import { FileViewer } from './components/FileViewer';
 import Avatar3D, { AvatarColorSwatch, AvatarPreviewHead } from './components/Avatar3D';
 import Leaderboard from './components/Leaderboard';
@@ -1669,6 +1670,20 @@ function GameContent() {
 // ============== MAIN APP ROUTER ==============
 function AppContent() {
   const { user, loading } = useAuth();
+  const [activeViewMode, setActiveViewMode] = useState(null); // 'admin' | 'teacher' | 'student'
+
+  // Set default view mode when user logs in or role changes
+  useEffect(() => {
+    if (user) {
+      if (user.role === 'admin' && !activeViewMode) {
+        setActiveViewMode('admin');
+      } else if (user.role === 'teacher' && !activeViewMode) {
+        setActiveViewMode('teacher');
+      }
+    } else {
+      setActiveViewMode(null);
+    }
+  }, [user]);
 
   if (loading) return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white" role="status" aria-live="polite">Loading...</div>;
 
@@ -1676,11 +1691,102 @@ function AppContent() {
     return <LoginScreen />;
   }
 
-  if (user.role === 'teacher') {
-    return <TeacherPortal />;
-  }
+  const currentMode = activeViewMode || (user.role === 'admin' ? 'admin' : user.role === 'teacher' ? 'teacher' : 'student');
+  const isElevatedUser = user.role === 'admin' || user.role === 'teacher';
 
-  return <GameContent />;
+  return (
+    <div className="min-h-screen bg-slate-950 text-white flex flex-col">
+      {/* Sticky Navigation View Switcher Bar */}
+      {isElevatedUser && (
+        <header className="bg-slate-950/95 backdrop-blur border-b border-slate-800 px-4 py-2 flex flex-wrap items-center justify-between gap-3 shadow-lg sticky top-0 z-50">
+          <div className="flex items-center gap-3">
+            {user.role === 'admin' ? (
+              <span className="px-2.5 py-1 bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 text-xs font-black uppercase rounded-lg tracking-wider flex items-center gap-1.5">
+                <Crown className="w-3.5 h-3.5" /> System Admin
+              </span>
+            ) : (
+              <span className="px-2.5 py-1 bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs font-black uppercase rounded-lg tracking-wider flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5" /> Teacher
+              </span>
+            )}
+            <span className="text-xs text-slate-400 font-medium hidden sm:inline">
+              Signed in as <strong className="text-white">{user.name || user.email}</strong>
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-slate-500 font-bold uppercase tracking-wider mr-1 hidden md:inline">Mode:</span>
+            {user.role === 'admin' && (
+              <button
+                onClick={() => setActiveViewMode('admin')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  currentMode === 'admin'
+                    ? 'bg-yellow-500 text-slate-950 shadow-md ring-2 ring-yellow-400/50'
+                    : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800'
+                }`}
+              >
+                <Crown className="w-3.5 h-3.5" /> Admin Dashboard
+              </button>
+            )}
+
+            <button
+              onClick={() => setActiveViewMode('teacher')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                currentMode === 'teacher'
+                  ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-500/50'
+                  : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" /> Teacher View
+            </button>
+
+            <button
+              onClick={() => setActiveViewMode('student')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                currentMode === 'student'
+                  ? 'bg-purple-600 text-white shadow-md ring-2 ring-purple-500/50'
+                  : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800'
+              }`}
+            >
+              <Gamepad2 className="w-3.5 h-3.5" /> Student Emulation View
+            </button>
+          </div>
+        </header>
+      )}
+
+      {/* Main View Router */}
+      <div className="flex-1">
+        {currentMode === 'admin' ? (
+          <AdminPortal
+            onSwitchToTeacher={() => setActiveViewMode('teacher')}
+            onSwitchToStudent={() => setActiveViewMode('student')}
+          />
+        ) : currentMode === 'teacher' ? (
+          <TeacherPortal
+            onSwitchToAdmin={() => setActiveViewMode('admin')}
+            onSwitchToStudent={() => setActiveViewMode('student')}
+          />
+        ) : (
+          <div>
+            <div className="bg-purple-950/90 border-b border-purple-800/60 p-3 px-6 flex flex-wrap items-center justify-between gap-2 text-xs text-purple-200 shadow-md">
+              <div className="flex items-center gap-2">
+                <Gamepad2 className="w-4 h-4 text-purple-400" />
+                <span className="font-bold text-white uppercase tracking-wider">Student Emulation Mode</span>
+                <span className="hidden sm:inline">&mdash; Previewing choice board game experience as a student</span>
+              </div>
+              <button
+                onClick={() => setActiveViewMode(user.role === 'admin' ? 'admin' : 'teacher')}
+                className="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg transition-colors border border-purple-400/40"
+              >
+                Exit Emulation
+              </button>
+            </div>
+            <GameContent />
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function App() {
