@@ -4,7 +4,7 @@ import { realBackend as backend } from '../services/realBackend';
 import {
   Users, Plus, LogOut, BookOpen, ClipboardList, CheckCircle2,
   XCircle, Clock, ChevronRight, GraduationCap, Copy, Trash2, Edit, RefreshCw, RotateCcw, Link, Save, Gift,
-  Share2, UserPlus, X, Mail, MessageSquare, Sparkles, Star, Trophy, ChevronDown, ChevronUp, BarChart3, Eye, Zap, Building2, Layers
+  Share2, UserPlus, X, Mail, MessageSquare, Sparkles, Star, Trophy, ChevronDown, ChevronUp, BarChart3, Eye, Zap, Building2, Layers, Shield, ShieldCheck
 } from 'lucide-react';
 import { LEVELS, ACHIEVEMENTS, GUILDS, GUILD_TROPHIES, LEARNING_PATHS, MAX_CATEGORIES, PATH_COLORS } from '../data/gameData';
 import Avatar3D from './Avatar3D';
@@ -12,6 +12,7 @@ import { FileViewer } from './FileViewer';
 import ActivityEditor from './ActivityEditor';
 import RosterManager from './RosterManager';
 import ChoiceBoardExport from './ChoiceBoardExport';
+import LegalModal from './LegalModal';
 
 export default function TeacherPortal() {
   const { user, logout } = useAuth();
@@ -23,6 +24,8 @@ export default function TeacherPortal() {
   const [creatingClass, setCreatingClass] = useState(false);
   const [newClassName, setNewClassName] = useState('');
   const [activeTab, setActiveTab] = useState('submissions'); // 'submissions', 'students', 'activities', 'categories'
+  const [legalModalOpen, setLegalModalOpen] = useState(false);
+  const [legalTab, setLegalTab] = useState('privacy');
   const [categoryNames, setCategoryNames] = useState({});
   const [categorySubtitles, setCategorySubtitles] = useState({});
   const [savingCategories, setSavingCategories] = useState(false);
@@ -1160,7 +1163,42 @@ export default function TeacherPortal() {
           </div>
         </div>
       )}
-    </div>
+
+        {/* Legal & Student Data Privacy Footer */}
+        <footer className="mt-12 pt-6 border-t border-slate-800 text-center text-xs text-slate-500 space-y-2 print:hidden">
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+            <button
+              onClick={() => { setLegalTab('privacy'); setLegalModalOpen(true); }}
+              className="hover:text-blue-400 transition-colors underline underline-offset-2"
+            >
+              Privacy Policy
+            </button>
+            <span className="text-slate-700">•</span>
+            <button
+              onClick={() => { setLegalTab('terms'); setLegalModalOpen(true); }}
+              className="hover:text-blue-400 transition-colors underline underline-offset-2"
+            >
+              Terms of Service
+            </button>
+            <span className="text-slate-700">•</span>
+            <button
+              onClick={() => { setLegalTab('compliance'); setLegalModalOpen(true); }}
+              className="hover:text-emerald-400 transition-colors flex items-center gap-1 inline-flex"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Student Data Privacy & FERPA / COPPA
+            </button>
+          </div>
+          <p className="text-[11px] text-slate-600">
+            Protected under Federal & State Student Privacy Laws. Zero ads & zero data selling.
+          </p>
+        </footer>
+
+        <LegalModal
+          isOpen={legalModalOpen}
+          onClose={() => setLegalModalOpen(false)}
+          initialTab={legalTab}
+        />
+      </div>
   );
 }
 

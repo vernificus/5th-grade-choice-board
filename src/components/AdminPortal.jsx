@@ -4,9 +4,10 @@ import { realBackend as backend } from '../services/realBackend';
 import {
   Building2, Users, BookOpen, Plus, Search, LogOut, CheckCircle2,
   XCircle, Edit, Trash2, ShieldCheck, ChevronRight, Share2, Filter,
-  CheckSquare, Square, RefreshCw, AlertCircle, Layers, Sparkles
+  CheckSquare, Square, RefreshCw, AlertCircle, Layers, Sparkles, Shield
 } from 'lucide-react';
 import ActivityEditor from './ActivityEditor';
+import LegalModal from './LegalModal';
 import { LEARNING_PATHS as DEFAULT_PATHS, PATH_COLORS } from '../data/gameData';
 
 export default function AdminPortal() {
@@ -16,6 +17,8 @@ export default function AdminPortal() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [legalModalOpen, setLegalModalOpen] = useState(false);
+  const [legalTab, setLegalTab] = useState('privacy');
 
   // Data states
   const [organizations, setOrganizations] = useState([]);
@@ -1253,6 +1256,40 @@ export default function AdminPortal() {
         </div>
       )}
 
+      {/* Legal & Student Data Privacy Footer */}
+      <footer className="mt-12 pt-6 border-t border-slate-800 text-center text-xs text-slate-500 space-y-2 print:hidden">
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+          <button
+            onClick={() => { setLegalTab('privacy'); setLegalModalOpen(true); }}
+            className="hover:text-blue-400 transition-colors underline underline-offset-2"
+          >
+            Privacy Policy
+          </button>
+          <span className="text-slate-700">•</span>
+          <button
+            onClick={() => { setLegalTab('terms'); setLegalModalOpen(true); }}
+            className="hover:text-blue-400 transition-colors underline underline-offset-2"
+          >
+            Terms of Service
+          </button>
+          <span className="text-slate-700">•</span>
+          <button
+            onClick={() => { setLegalTab('compliance'); setLegalModalOpen(true); }}
+            className="hover:text-emerald-400 transition-colors flex items-center gap-1 inline-flex"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Student Data Privacy & FERPA / COPPA
+          </button>
+        </div>
+        <p className="text-[11px] text-slate-600">
+          Protected under Federal & State Student Privacy Laws. Zero ads & zero data selling.
+        </p>
+      </footer>
+
+      <LegalModal
+        isOpen={legalModalOpen}
+        onClose={() => setLegalModalOpen(false)}
+        initialTab={legalTab}
+      />
     </div>
   );
 }

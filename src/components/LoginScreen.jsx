@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { BookOpen, Users, LogIn, UserPlus, ArrowRight, GraduationCap, Lock, User, UserCheck, Building2, ShieldCheck } from 'lucide-react';
+import { BookOpen, Users, LogIn, UserPlus, ArrowRight, GraduationCap, Lock, User, UserCheck, Building2, ShieldCheck, Shield } from 'lucide-react';
 import { realBackend as backend } from '../services/realBackend';
+import LegalModal from './LegalModal';
 
 export default function LoginScreen() {
   const { loginTeacher, registerTeacher, loginStudent, signupStudent } = useAuth();
@@ -9,6 +10,8 @@ export default function LoginScreen() {
   const [mode, setMode] = useState('select'); // select, teacher-login, teacher-signup, admin-login, student-join, student-select, student-password, student-signup
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [legalModalOpen, setLegalModalOpen] = useState(false);
+  const [legalTab, setLegalTab] = useState('privacy');
 
   // Form states
   const [email, setEmail] = useState('');
@@ -524,7 +527,44 @@ export default function LoginScreen() {
           </form>
         )}
 
+        {/* Legal & Compliance Footer */}
+        <div className="mt-8 pt-4 border-t border-slate-700/60 text-center text-xs text-slate-400 space-y-2">
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+            <button
+              type="button"
+              onClick={() => { setLegalTab('privacy'); setLegalModalOpen(true); }}
+              className="hover:text-blue-400 transition-colors underline underline-offset-2"
+            >
+              Privacy Policy
+            </button>
+            <span className="text-slate-600">•</span>
+            <button
+              type="button"
+              onClick={() => { setLegalTab('terms'); setLegalModalOpen(true); }}
+              className="hover:text-blue-400 transition-colors underline underline-offset-2"
+            >
+              Terms of Service
+            </button>
+            <span className="text-slate-600">•</span>
+            <button
+              type="button"
+              onClick={() => { setLegalTab('compliance'); setLegalModalOpen(true); }}
+              className="hover:text-emerald-400 transition-colors flex items-center gap-1 inline-flex"
+            >
+              <Shield className="w-3 h-3 text-emerald-400" /> FERPA & COPPA Compliant
+            </button>
+          </div>
+          <p className="text-[11px] text-slate-500">
+            Protected under Federal & State Student Privacy Laws. Zero ads & zero data selling.
+          </p>
+        </div>
       </div>
+
+      <LegalModal
+        isOpen={legalModalOpen}
+        onClose={() => setLegalModalOpen(false)}
+        initialTab={legalTab}
+      />
     </div>
   );
 }

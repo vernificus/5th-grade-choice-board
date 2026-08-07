@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Gamepad2, Mic, BarChart3, Palette, CheckCircle2, Trophy, Rocket, Info, X, PlayCircle,
-  Star, Gift, Swords, Users, User, Sparkles, Zap, Shield, Crown, Target,
+  Star, Gift, Swords, Users, User, Sparkles, Zap, Shield, ShieldCheck, Crown, Target,
   Upload, Link, Link2, Clock, CheckCheck, XCircle, ClipboardList, Lock, Eye, FileText, LogOut,
   MessageSquare, Pencil, BookOpen
 } from 'lucide-react';
@@ -17,6 +17,7 @@ import AdminPortal from './components/AdminPortal';
 import { FileViewer } from './components/FileViewer';
 import Avatar3D, { AvatarColorSwatch, AvatarPreviewHead } from './components/Avatar3D';
 import Leaderboard from './components/Leaderboard';
+import LegalModal from './components/LegalModal';
 import { realBackend as backend } from './services/realBackend';
 
 const IconMap = { Mic, BarChart3, Palette, BookOpen };
@@ -1468,6 +1469,8 @@ function GameContent() {
   const [showMySubmissions, setShowMySubmissions] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [classSpotlight, setClassSpotlight] = useState(null);
+  const [showLegalModal, setShowLegalModal] = useState(false);
+  const [legalModalTab, setLegalModalTab] = useState('privacy');
 
   const dailyQuest = getDailyQuest();
 
@@ -1550,6 +1553,14 @@ function GameContent() {
           >
             <Crown className="w-5 h-5 text-blue-400" aria-hidden="true" />
             <span className="font-bold">Leaderboard</span>
+          </button>
+          <button
+            onClick={() => { setLegalModalTab('privacy'); setShowLegalModal(true); }}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg hover:border-emerald-500 transition-colors text-slate-300 hover:text-white ml-auto"
+            aria-label="View Student Data Privacy & Terms"
+          >
+            <ShieldCheck className="w-5 h-5 text-emerald-400" aria-hidden="true" />
+            <span className="font-bold text-sm">Privacy & Terms</span>
           </button>
         </div>
 
@@ -1663,6 +1674,40 @@ function GameContent() {
       {showMysteryReward && <MysteryBoxModal reward={showMysteryReward} onClose={() => setShowMysteryReward(null)} />}
       {showLevelUp && newLevel && <LevelUpModal level={newLevel} avatar={gameState.avatar} onClose={() => setShowLevelUp(false)} />}
       {showAchievement && <AchievementModal achievement={showAchievement} onClose={() => setShowAchievement(null)} />}
+
+      <footer className="mt-12 pt-6 border-t border-slate-800 text-center text-xs text-slate-500 space-y-2 print:hidden">
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+          <button
+            onClick={() => { setLegalModalTab('privacy'); setShowLegalModal(true); }}
+            className="hover:text-blue-400 transition-colors underline underline-offset-2"
+          >
+            Privacy Policy
+          </button>
+          <span className="text-slate-700">•</span>
+          <button
+            onClick={() => { setLegalModalTab('terms'); setShowLegalModal(true); }}
+            className="hover:text-blue-400 transition-colors underline underline-offset-2"
+          >
+            Terms of Service
+          </button>
+          <span className="text-slate-700">•</span>
+          <button
+            onClick={() => { setLegalModalTab('compliance'); setShowLegalModal(true); }}
+            className="hover:text-emerald-400 transition-colors flex items-center gap-1 inline-flex"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Student Data Privacy Compliance
+          </button>
+        </div>
+        <p className="text-[11px] text-slate-600">
+          Designed for K-12 Classrooms. Compliant with FERPA, COPPA, SOPIPA & State Educational Privacy Statutes.
+        </p>
+      </footer>
+
+      <LegalModal
+        isOpen={showLegalModal}
+        onClose={() => setShowLegalModal(false)}
+        initialTab={legalModalTab}
+      />
     </div>
   );
 }
