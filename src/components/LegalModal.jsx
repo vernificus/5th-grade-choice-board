@@ -211,8 +211,8 @@ export default function LegalModal({ isOpen, onClose, initialTab = 'privacy' }) 
                 <p>{highlightMatch("For privacy inquiries, FERPA/COPPA compliance validation, or data deletion requests, contact:")}</p>
                 <div className="bg-slate-950 p-3 rounded-lg text-xs font-mono text-slate-400 print:bg-slate-100 print:text-slate-800">
                   Student Data Privacy & Compliance Officer<br />
-                  Email: privacy@levelupadventure.edu<br />
-                  Level Up Educational Technologies
+                  Email: support@getpathweave.com<br />
+                  Pathweave LLC
                 </div>
               </section>
             </div>
@@ -252,7 +252,7 @@ export default function LegalModal({ isOpen, onClose, initialTab = 'privacy' }) 
 
               <section className="space-y-2">
                 <h4 className="text-white font-bold text-base print:text-black">4. Intellectual Property</h4>
-                <p>{highlightMatch("All mission content, avatar graphics, game mechanics, and software code are the property of Level Up Educational Technologies. Student-created submission answers and original work remain the intellectual property of the student or school district in accordance with district policies.")}</p>
+                <p>{highlightMatch("All mission content, avatar graphics, game mechanics, and software code are the property of Pathweave LLC. Student-created submission answers and original work remain the intellectual property of the student or school district in accordance with district policies.")}</p>
               </section>
 
               <section className="space-y-2">
@@ -262,7 +262,7 @@ export default function LegalModal({ isOpen, onClose, initialTab = 'privacy' }) 
 
               <section className="space-y-2">
                 <h4 className="text-white font-bold text-base print:text-black">6. Disclaimers & Limitation of Liability</h4>
-                <p>{highlightMatch("The platform is provided 'as is' for educational enrichment. To the extent permitted by law, Level Up Educational Technologies shall not be liable for indirect, incidental, or consequential damages resulting from service interruptions or user misuse.")}</p>
+                <p>{highlightMatch("The platform is provided 'as is' for educational enrichment. To the extent permitted by law, Pathweave LLC shall not be liable for indirect, incidental, or consequential damages resulting from service interruptions or user misuse.")}</p>
               </section>
             </div>
           )}
@@ -323,7 +323,7 @@ export default function LegalModal({ isOpen, onClose, initialTab = 'privacy' }) 
                   <Building2 className="w-4 h-4 text-blue-400" /> District Data Privacy Agreements (DPA)
                 </h4>
                 <p className="text-xs text-slate-400 print:text-slate-700">
-                  We partner with school districts, County Offices of Education, and regional IT consortia to sign standardized Student Data Privacy Agreements (e.g., National SDPC DPA / NDPA). School administrators may contact <span className="text-blue-400 font-mono">legal@levelupadventure.edu</span> to submit custom district agreements for execution.
+                  We partner with school districts, County Offices of Education, and regional IT consortia to sign standardized Student Data Privacy Agreements (e.g., National SDPC DPA / NDPA). School administrators may contact <span className="text-blue-400 font-mono">support@getpathweave.com</span> to submit custom district agreements for execution.
                 </p>
               </div>
             </div>
