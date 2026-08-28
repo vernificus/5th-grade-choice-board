@@ -451,6 +451,7 @@ export function useGameState() {
              xp: prev.xp + xpEarned,
              completedActivities: [...new Set([...prev.completedActivities, submission.activityId])],
              totalActivitiesCompleted: newTotal,
+             guildXpContributed: prev.guild ? (prev.guildXpContributed || 0) + xpEarned : prev.guildXpContributed,
              currentStreak: newStreak,
              lastActivityDate: today,
              dailyQuestCompleted: isDailyQuestMatch ? true : prev.dailyQuestCompleted,

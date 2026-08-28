@@ -305,6 +305,71 @@ function Hat({ type, cx, baseY, s = 1 }) {
           <rect x={cx - 6 * s} y={baseY - 32 * s} width={12 * s} height={6 * s} fill="#F7FAFC" />
         </g>
       );
+    case 'dragon_horns':
+      return (
+        <g>
+          {/* Fire Dragon Horns */}
+          <rect x={cx - 28 * s} y={baseY - 2 * s} width={56 * s} height={6 * s} fill="#C53030" stroke="#9B2C2C" strokeWidth={1 * s} />
+          {/* Left Horn */}
+          <rect x={cx - 26 * s} y={baseY - 10 * s} width={8 * s} height={8 * s} fill="#E53E3E" />
+          <rect x={cx - 30 * s} y={baseY - 20 * s} width={8 * s} height={10 * s} fill="#DD6B20" />
+          <rect x={cx - 32 * s} y={baseY - 28 * s} width={6 * s} height={8 * s} fill="#ECC94B" />
+          {/* Right Horn */}
+          <rect x={cx + 18 * s} y={baseY - 10 * s} width={8 * s} height={8 * s} fill="#E53E3E" />
+          <rect x={cx + 22 * s} y={baseY - 20 * s} width={8 * s} height={10 * s} fill="#DD6B20" />
+          <rect x={cx + 26 * s} y={baseY - 28 * s} width={6 * s} height={8 * s} fill="#ECC94B" />
+        </g>
+      );
+    case 'wolf_cowl':
+      return (
+        <g>
+          {/* Shadow Wolf Ears & Hood */}
+          <rect x={cx - 26 * s} y={baseY - 6 * s} width={52 * s} height={12 * s} fill="#553C9A" />
+          {/* Left Ear */}
+          <rect x={cx - 24 * s} y={baseY - 16 * s} width={10 * s} height={10 * s} fill="#6B46C1" />
+          <rect x={cx - 22 * s} y={baseY - 24 * s} width={6 * s} height={8 * s} fill="#805AD5" />
+          <rect x={cx - 20 * s} y={baseY - 12 * s} width={4 * s} height={6 * s} fill="#D6BCFA" />
+          {/* Right Ear */}
+          <rect x={cx + 14 * s} y={baseY - 16 * s} width={10 * s} height={10 * s} fill="#6B46C1" />
+          <rect x={cx + 16 * s} y={baseY - 24 * s} width={6 * s} height={8 * s} fill="#805AD5" />
+          <rect x={cx + 16 * s} y={baseY - 12 * s} width={4 * s} height={6 * s} fill="#D6BCFA" />
+        </g>
+      );
+    case 'phoenix_crest':
+      return (
+        <g>
+          {/* Golden Phoenix Flame Crest */}
+          <rect x={cx - 22 * s} y={baseY - 2 * s} width={44 * s} height={6 * s} fill="#D69E2E" />
+          <rect x={cx - 14 * s} y={baseY - 12 * s} width={28 * s} height={10 * s} fill="#ECC94B" />
+          <rect x={cx - 8 * s} y={baseY - 24 * s} width={16 * s} height={12 * s} fill="#ED8936" />
+          <rect x={cx - 4 * s} y={baseY - 34 * s} width={8 * s} height={10 * s} fill="#E53E3E" />
+        </g>
+      );
+    case 'shark_fin':
+      return (
+        <g>
+          {/* Ocean Shark Fin Helm */}
+          <rect x={cx - 26 * s} y={baseY} width={52 * s} height={8 * s} fill="#2B6CB0" stroke="#2C5282" strokeWidth={1 * s} />
+          {/* Center Fin */}
+          <rect x={cx - 6 * s} y={baseY - 12 * s} width={12 * s} height={12 * s} fill="#3182CE" />
+          <rect x={cx - 4 * s} y={baseY - 24 * s} width={8 * s} height={12 * s} fill="#4299E1" />
+          <rect x={cx - 2 * s} y={baseY - 32 * s} width={4 * s} height={8 * s} fill="#63B3ED" />
+        </g>
+      );
+    case 'mythic_crown':
+      return (
+        <g>
+          {/* Mythic Tier 10 Guild Crown */}
+          <rect x={cx - 26 * s} y={baseY - 4 * s} width={52 * s} height={14 * s} fill="#D69E2E" stroke="#ECC94B" strokeWidth={1.5 * s} />
+          <rect x={cx - 24 * s} y={baseY - 16 * s} width={8 * s} height={12 * s} fill="#ECC94B" />
+          <rect x={cx - 4 * s} y={baseY - 24 * s} width={8 * s} height={20 * s} fill="#F6E05E" />
+          <rect x={cx + 16 * s} y={baseY - 16 * s} width={8 * s} height={12 * s} fill="#ECC94B" />
+          {/* Large Gem */}
+          <rect x={cx - 3 * s} y={baseY - 2 * s} width={6 * s} height={6 * s} fill="#9F7AEA" />
+          <rect x={cx - 18 * s} y={baseY - 1 * s} width={4 * s} height={4 * s} fill="#3182CE" />
+          <rect x={cx + 14 * s} y={baseY - 1 * s} width={4 * s} height={4 * s} fill="#E53E3E" />
+        </g>
+      );
     default:
       return null;
   }
@@ -345,6 +410,30 @@ function Outfit({ type, skin }) {
           <rect x="124" y="140" width="4" height="70" fill="#E53E3E" opacity="0.8" />
           <rect x="128" y="150" width="4" height="56" fill="#E53E3E" opacity="0.6" />
           <rect x="72" y="138" width="56" height="4" fill="#D69E2E" />
+        </g>
+      );
+    case 'guild_cloak':
+      return (
+        <g>
+          {/* Royal Guild Banner Cloak */}
+          <rect x="70" y="138" width="6" height="74" fill="#805AD5" opacity="0.9" />
+          <rect x="66" y="148" width="6" height="60" fill="#6B46C1" opacity="0.7" />
+          <rect x="124" y="138" width="6" height="74" fill="#805AD5" opacity="0.9" />
+          <rect x="128" y="148" width="6" height="60" fill="#6B46C1" opacity="0.7" />
+          <rect x="70" y="136" width="60" height="5" fill="#ECC94B" />
+          <rect x="96" y="152" width="8" height="12" fill="#ECC94B" />
+        </g>
+      );
+    case 'phoenix_wings':
+      return (
+        <g>
+          {/* Phoenix Fire Wings */}
+          <rect x="56" y="130" width="12" height="6" fill="#ED8936" opacity="0.9" />
+          <rect x="48" y="136" width="16" height="10" fill="#E53E3E" opacity="0.8" />
+          <rect x="42" y="146" width="18" height="14" fill="#DD6B20" opacity="0.7" />
+          <rect x="132" y="130" width="12" height="6" fill="#ED8936" opacity="0.9" />
+          <rect x="136" y="136" width="16" height="10" fill="#E53E3E" opacity="0.8" />
+          <rect x="140" y="146" width="18" height="14" fill="#DD6B20" opacity="0.7" />
         </g>
       );
     case 'shield':

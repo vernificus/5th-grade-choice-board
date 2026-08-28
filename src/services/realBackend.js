@@ -19,6 +19,7 @@ import {
   onSnapshot
 } from "firebase/firestore";
 import { auth, db } from "./firebase";
+import { GUILDS, GUILD_LEVELS, GUILD_CHALLENGES, getGuildLevelInfo } from "../data/gameData";
 
 export const realBackend = {
   // ================= TEACHER AUTH =================
@@ -783,38 +784,249 @@ export const realBackend = {
     }
   },
 
-  // ================= GUILD CHALLENGES =================
+  // ================= GUILD SYSTEM 2.0 =================
   async getGuildLeaderboard(classId) {
     try {
       const students = await this.getStudents(classId);
       const guildStats = {};
-      students.forEach(s => {
-        if (s.guild) {
-          if (!guildStats[s.guild]) {
-            guildStats[s.guild] = { totalXp: 0, memberCount: 0, members: [] };
+
+      // Initialize all 4 guilds
+      GUILDS.forEach(g => {
+        guildStats[g.id] = {
+          id: g.id,
+          name: g.name,
+          color: g.color,
+          emoji: g.emoji,
+          motto: g.motto,
+          totalXp: 0,
+          memberCount: 0,
+          members: [],
+          levelInfo: getGuildLevelInfo(0),
+          challenges: GUILD_CHALLENGES.map(ch => ({
+            ...ch,
+            current: 0,
+            percent: 0,
+            completed: false
+          })),
+          mvps: {
+            champion: null,
+            flamekeeper: null,
+            collabHero: null
           }
-          guildStats[s.guild].totalXp += (s.guildXpContributed || 0);
-          guildStats[s.guild].memberCount += 1;
-          guildStats[s.guild].members.push({
+        };
+      });
+
+      // Distribute students to guilds and compute statistics
+      students.forEach(s => {
+        if (s.guild && guildStats[s.guild]) {
+          const g = guildStats[s.guild];
+          const contributedXp = s.guildXpContributed || 0;
+          g.totalXp += contributedXp;
+          g.memberCount += 1;
+
+          const memberObj = {
             id: s.id,
             name: s.name,
-            xp: s.guildXpContributed || 0,
+            xp: contributedXp,
             totalXp: s.xp || 0,
             coins: s.coins || 0,
             currentStreak: s.currentStreak || 0,
+            completedActivities: s.completedActivities || [],
+            completedBossChallenges: s.completedBossChallenges || [],
+            collaborationCount: s.collaborationCount || 0,
+            claimedGuildChallenges: s.claimedGuildChallenges || [],
             unlockedAchievements: s.unlockedAchievements || [],
             avatar: s.avatar || { color: 'default', hat: 'none', accessory: 'none', face: 'happy' },
-          });
+          };
+          g.members.push(memberObj);
         }
       });
-      // Sort members within each guild
-      Object.values(guildStats).forEach(g => {
-        g.members.sort((a, b) => b.xp - a.xp);
+
+      // Compute level info, MVPs, and live guild challenge progress for each guild
+      Object.keys(guildStats).forEach(guildId => {
+        const g = guildStats[guildId];
+        g.levelInfo = getGuildLevelInfo(g.totalXp);
+
+        // Sort members by contributed XP descending
+        g.members.sort((a, b) => (b.xp || 0) - (a.xp || 0));
+
+        if (g.members.length > 0) {
+          // Champion (highest contributed XP)
+          g.mvps.champion = g.members[0];
+
+          // Flamekeeper (highest streak)
+          const sortedByStreak = [...g.members].sort((a, b) => (b.currentStreak || 0) - (a.currentStreak || 0));
+          if (sortedByStreak[0]?.currentStreak > 0) {
+            g.mvps.flamekeeper = sortedByStreak[0];
+          }
+
+          // Collaboration Hero
+          const sortedByCollab = [...g.members].sort((a, b) => (b.collaborationCount || 0) - (a.collaborationCount || 0));
+          if (sortedByCollab[0]?.collaborationCount > 0) {
+            g.mvps.collabHero = sortedByCollab[0];
+          }
+        }
+
+        // Compute live challenge progress across all guild members
+        g.challenges = GUILD_CHALLENGES.map(ch => {
+          let currentVal = 0;
+          if (ch.type === 'activities') {
+            currentVal = g.members.reduce((acc, m) => acc + (m.completedActivities?.length || 0), 0);
+          } else if (ch.type === 'streakers') {
+            currentVal = g.members.filter(m => (m.currentStreak || 0) >= 3).length;
+          } else if (ch.type === 'paths') {
+            // Count unique activities across paths
+            currentVal = g.members.reduce((acc, m) => acc + (m.completedActivities?.length || 0), 0);
+          } else if (ch.type === 'bosses') {
+            currentVal = g.members.reduce((acc, m) => acc + (m.completedBossChallenges?.length || 0), 0);
+          } else if (ch.type === 'collab') {
+            currentVal = g.members.reduce((acc, m) => acc + (m.collaborationCount || 0), 0);
+          }
+
+          const target = ch.target || 1;
+          const percent = Math.min(100, Math.round((currentVal / target) * 100));
+          const completed = currentVal >= target;
+
+          return {
+            ...ch,
+            current: currentVal,
+            percent,
+            completed
+          };
+        });
       });
+
       return guildStats;
     } catch (error) {
       console.error("Error getting guild leaderboard:", error);
       return {};
+    }
+  },
+
+  // ================= SEND GUILD CHEER / HIGH FIVE =================
+  async sendGuildCheer(classId, senderId, senderName, receiverId, receiverName, guildId) {
+    try {
+      if (!classId || !senderId || !receiverId) throw new Error('Invalid cheer parameters');
+
+      // 1. Grant sender +10 XP and receiver +15 XP
+      const senderRef = doc(db, "students", senderId);
+      const receiverRef = doc(db, "students", receiverId);
+
+      const [senderDoc, receiverDoc] = await Promise.all([
+        getDoc(senderRef),
+        getDoc(receiverRef)
+      ]);
+
+      if (senderDoc.exists()) {
+        const sData = senderDoc.data();
+        await updateDoc(senderRef, {
+          xp: (sData.xp || 0) + 10,
+          guildXpContributed: (sData.guildXpContributed || 0) + 10
+        });
+      }
+
+      if (receiverDoc.exists()) {
+        const rData = receiverDoc.data();
+        await updateDoc(receiverRef, {
+          xp: (rData.xp || 0) + 15,
+          guildXpContributed: (rData.guildXpContributed || 0) + 15
+        });
+      }
+
+      // 2. Update Guild Hall spirit flame and cheer log
+      if (guildId) {
+        const hall = await this.getGuildHall(classId, guildId);
+        const cheers = (hall.spiritFlame || 0) + 1;
+        const recentCheers = [
+          {
+            senderName,
+            receiverName,
+            timestamp: new Date().toISOString()
+          },
+          ...(hall.recentCheers || []).slice(0, 9)
+        ];
+
+        await this.updateGuildHall(classId, guildId, {
+          spiritFlame: cheers,
+          recentCheers
+        });
+      }
+
+      return { success: true, senderXpEarned: 10, receiverXpEarned: 15 };
+    } catch (error) {
+      console.error("Error sending guild cheer:", error);
+      throw error;
+    }
+  },
+
+  // ================= CLAIM GUILD CHALLENGE REWARD =================
+  async claimGuildChallengeReward(classId, studentId, guildId, challengeId, rewardXp, rewardCoins) {
+    try {
+      const studentRef = doc(db, "students", studentId);
+      const studentDoc = await getDoc(studentRef);
+      if (!studentDoc.exists()) throw new Error('Student not found');
+
+      const sData = studentDoc.data();
+      const claimed = sData.claimedGuildChallenges || [];
+      if (claimed.includes(challengeId)) {
+        return { alreadyClaimed: true };
+      }
+
+      const updates = {
+        xp: (sData.xp || 0) + (rewardXp || 100),
+        coins: (sData.coins || 0) + (rewardCoins || 50),
+        guildXpContributed: (sData.guildXpContributed || 0) + (rewardXp || 100),
+        claimedGuildChallenges: [...claimed, challengeId]
+      };
+
+      await updateDoc(studentRef, updates);
+      return { success: true, rewardXp, rewardCoins };
+    } catch (error) {
+      console.error("Error claiming guild reward:", error);
+      throw error;
+    }
+  },
+
+  // ================= AUTO-BALANCE GUILDS (TEACHER) =================
+  async autoBalanceGuilds(classId, mode = 'unassigned') {
+    try {
+      const students = await this.getStudents(classId);
+      if (!students || students.length === 0) return { updatedCount: 0 };
+
+      const targetStudents = mode === 'all'
+        ? [...students]
+        : students.filter(s => !s.guild);
+
+      if (targetStudents.length === 0) return { updatedCount: 0 };
+
+      // Shuffle students randomly for fair distribution
+      for (let i = targetStudents.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [targetStudents[i], targetStudents[j]] = [targetStudents[j], targetStudents[i]];
+      }
+
+      // Count current members per guild if balancing unassigned
+      const guildCounts = {};
+      GUILDS.forEach(g => {
+        guildCounts[g.id] = mode === 'all' ? 0 : students.filter(s => s.guild === g.id).length;
+      });
+
+      let updatedCount = 0;
+      for (const student of targetStudents) {
+        // Find guild with smallest count
+        const targetGuild = Object.keys(guildCounts).reduce((minId, currentId) => {
+          return guildCounts[currentId] < guildCounts[minId] ? currentId : minId;
+        }, GUILDS[0].id);
+
+        guildCounts[targetGuild]++;
+        await updateDoc(doc(db, "students", student.id), { guild: targetGuild });
+        updatedCount++;
+      }
+
+      return { updatedCount };
+    } catch (error) {
+      console.error("Error auto-balancing guilds:", error);
+      throw error;
     }
   },
 
@@ -856,10 +1068,26 @@ export const realBackend = {
       if (hallDoc.exists()) {
         return { id: hallDoc.id, ...hallDoc.data() };
       }
-      return { id: guildId, trophies: [], description: '', banner: '' };
+      return {
+        id: guildId,
+        trophies: [],
+        description: '',
+        banner: 'default',
+        spiritFlame: 0,
+        recentCheers: [],
+        notice: null
+      };
     } catch (error) {
       console.error("Error getting guild hall:", error);
-      return { id: guildId, trophies: [], description: '', banner: '' };
+      return {
+        id: guildId,
+        trophies: [],
+        description: '',
+        banner: 'default',
+        spiritFlame: 0,
+        recentCheers: [],
+        notice: null
+      };
     }
   },
 

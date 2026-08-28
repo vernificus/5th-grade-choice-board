@@ -6,7 +6,7 @@ import {
   XCircle, Clock, ChevronRight, GraduationCap, Copy, Trash2, Edit, RefreshCw, RotateCcw, Link, Save, Gift,
   Share2, UserPlus, X, Mail, MessageSquare, Sparkles, Star, Trophy, ChevronDown, ChevronUp, BarChart3, Eye, Zap, Building2, Layers, Shield, ShieldCheck
 } from 'lucide-react';
-import { LEVELS, ACHIEVEMENTS, GUILDS, GUILD_TROPHIES, LEARNING_PATHS, MAX_CATEGORIES, PATH_COLORS } from '../data/gameData';
+import { LEVELS, ACHIEVEMENTS, GUILDS, GUILD_TROPHIES, GUILD_LEVELS, getGuildLevelInfo, LEARNING_PATHS, MAX_CATEGORIES, PATH_COLORS } from '../data/gameData';
 import Avatar3D from './Avatar3D';
 import { FileViewer } from './FileViewer';
 import ActivityEditor from './ActivityEditor';
@@ -1285,6 +1285,21 @@ function GuildManagement({ classId, students, onStudentsUpdated }) {
     setAwardingTrophy(false);
   };
 
+  const handleAutoBalance = async (mode = 'unassigned') => {
+    const msg = mode === 'all'
+      ? 'Rebalance ALL students evenly across the 4 guilds?'
+      : 'Auto-assign all unassigned students to balance guild rosters?';
+    if (!window.confirm(msg)) return;
+    try {
+      const res = await backend.autoBalanceGuilds(classId, mode);
+      alert(`Successfully distributed ${res.updatedCount} students across guilds!`);
+      loadGuildData();
+      if (onStudentsUpdated) onStudentsUpdated();
+    } catch (e) {
+      alert('Error auto-balancing: ' + e.message);
+    }
+  };
+
   // Sort guilds by total XP for leaderboard
   const sortedGuilds = [...GUILDS].sort((a, b) => {
     const aXp = guildData[a.id]?.totalXp || 0;
@@ -1296,11 +1311,37 @@ function GuildManagement({ classId, students, onStudentsUpdated }) {
 
   return (
     <div className="space-y-6">
-      {/* Guild Leaderboard */}
+      {/* Guild Leaderboard Header & Auto-Balance Controls */}
       <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-          <Trophy className="w-6 h-6 text-yellow-400" aria-hidden="true" /> Guild Leaderboard
-        </h3>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div>
+            <h3 className="text-xl font-black text-white flex items-center gap-2">
+              <Trophy className="w-6 h-6 text-yellow-400" aria-hidden="true" /> Guild Hub & Leaderboard
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Monitor team progression, guild perks, award trophies, and auto-balance student rosters.
+            </p>
+          </div>
+
+          {/* Auto-Balance Action Buttons */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {unassigned.length > 0 && (
+              <button
+                onClick={() => handleAutoBalance('unassigned')}
+                className="px-3.5 py-2 bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 shadow transition-all"
+              >
+                <Sparkles className="w-3.5 h-3.5" /> Auto-Assign ({unassigned.length}) Unassigned
+              </button>
+            )}
+            <button
+              onClick={() => handleAutoBalance('all')}
+              className="px-3.5 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold rounded-xl text-xs flex items-center gap-1.5 border border-slate-600 transition-colors"
+              title="Evenly rebalance all students across the 4 guilds"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-blue-400" /> Rebalance All Guilds
+            </button>
+          </div>
+        </div>
 
         {loading ? (
           <p className="text-slate-500 text-center py-4" role="status">Loading guild data...</p>
@@ -1309,54 +1350,76 @@ function GuildManagement({ classId, students, onStudentsUpdated }) {
             {sortedGuilds.map((guild, idx) => {
               const stats = guildData[guild.id];
               const hallTrophies = guildHalls[guild.id]?.trophies || [];
+              const levelInfo = getGuildLevelInfo(stats?.totalXp || 0);
+
               return (
-                <div key={guild.id} className={`p-4 rounded-xl border-2 ${idx === 0 ? 'border-yellow-500/50 bg-yellow-500/5' : 'border-slate-600 bg-slate-700/30'}`}>
-                  <div className="flex items-center gap-4">
+                <div key={guild.id} className={`p-5 rounded-2xl border-2 transition-all ${idx === 0 ? 'border-yellow-500/50 bg-yellow-500/5 shadow-lg' : 'border-slate-700 bg-slate-700/30'}`}>
+                  <div className="flex items-center gap-4 flex-wrap sm:flex-nowrap">
                     <div className="w-8 text-center flex-shrink-0">
                       {idx === 0 && <span className="text-2xl" aria-hidden="true">🥇</span>}
                       {idx === 1 && <span className="text-2xl" aria-hidden="true">🥈</span>}
                       {idx === 2 && <span className="text-2xl" aria-hidden="true">🥉</span>}
                       {idx === 3 && <span className="text-lg font-bold text-slate-500">#4</span>}
                     </div>
-                    <div className={`w-12 h-12 rounded-xl ${guild.color} flex items-center justify-center`}>
+                    <div className={`w-12 h-12 rounded-2xl ${guild.color} flex items-center justify-center shadow`}>
                       <span className="text-2xl" aria-hidden="true">{guild.emoji}</span>
                     </div>
-                    <div className="flex-1">
-                      <p className="font-black text-white text-lg">{guild.name}</p>
-                      <p className="text-xs text-slate-400">{guild.motto}</p>
+                    <div className="flex-1 min-w-[200px]">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-black text-white text-lg">{guild.name}</p>
+                        <span className="text-[11px] font-black uppercase px-2.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
+                          Level {levelInfo.level} • {levelInfo.name}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-0.5">Perk: <span className="text-slate-300 font-semibold">{levelInfo.perk}</span></p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-2xl font-black text-yellow-400">{stats?.totalXp || 0}</p>
-                      <p className="text-xs text-slate-400">Total XP</p>
+
+                    <div className="text-right px-2">
+                      <p className="text-xl font-black text-yellow-400">{(stats?.totalXp || 0).toLocaleString()} XP</p>
+                      <p className="text-[11px] text-slate-400">{levelInfo.isMax ? 'Max Level' : `${levelInfo.xpNeeded.toLocaleString()} to Lvl ${levelInfo.level + 1}`}</p>
                     </div>
-                    <div className="text-right">
+
+                    <div className="text-right px-2">
                       <p className="text-lg font-bold text-blue-400">{stats?.memberCount || 0}</p>
                       <p className="text-xs text-slate-400">Members</p>
                     </div>
+
                     <div className="flex gap-2">
                       <button
                         onClick={() => { setRewardGuild(guild.id); setRewardType('xp'); setRewardAmount(''); }}
-                        className="p-2 text-slate-400 hover:text-yellow-400 transition-colors"
+                        className="p-2.5 bg-slate-800 hover:bg-yellow-500/20 text-slate-400 hover:text-yellow-400 rounded-xl border border-slate-700 transition-colors"
+                        title={`Give direct reward drop to ${guild.name}`}
                         aria-label={`Give reward to ${guild.name}`}
                       >
-                        <Gift className="w-5 h-5" aria-hidden="true" />
+                        <Gift className="w-4 h-4" aria-hidden="true" />
                       </button>
                       <button
                         onClick={() => { setTrophyGuild(guild.id); setSelectedTrophy(''); setTrophyMessage(''); }}
-                        className="p-2 text-slate-400 hover:text-purple-400 transition-colors"
+                        className="p-2.5 bg-slate-800 hover:bg-purple-500/20 text-slate-400 hover:text-purple-400 rounded-xl border border-slate-700 transition-colors"
+                        title={`Award trophy to ${guild.name}`}
                         aria-label={`Award trophy to ${guild.name}`}
                       >
-                        <Trophy className="w-5 h-5" aria-hidden="true" />
+                        <Trophy className="w-4 h-4" aria-hidden="true" />
                       </button>
                     </div>
+                  </div>
+
+                  {/* Level Progress Bar */}
+                  <div className="mt-3 w-full h-2 bg-slate-900 rounded-full overflow-hidden p-0.5 border border-slate-700">
+                    <div
+                      className="h-full bg-gradient-to-r from-yellow-400 to-amber-300 rounded-full transition-all duration-500"
+                      style={{ width: `${levelInfo.progress}%` }}
+                    />
                   </div>
 
                   {/* Guild Hall Trophies Preview */}
                   {hallTrophies.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-slate-600/50 flex items-center gap-2 flex-wrap">
-                      <span className="text-xs text-slate-500 uppercase font-bold">Hall Trophies:</span>
+                      <span className="text-xs text-slate-400 uppercase font-black">Hall Trophies:</span>
                       {hallTrophies.map((t, i) => (
-                        <span key={i} className="text-lg" title={`${t.title}${t.message ? ': ' + t.message : ''}`} aria-label={t.title}>{t.icon}</span>
+                        <span key={i} className="text-lg bg-slate-800/80 px-2 py-0.5 rounded-lg border border-slate-700" title={`${t.title}${t.message ? ': ' + t.message : ''}`} aria-label={t.title}>
+                          {t.icon} <span className="text-xs font-bold text-slate-300 ml-1">{t.title}</span>
+                        </span>
                       ))}
                     </div>
                   )}
@@ -1368,13 +1431,13 @@ function GuildManagement({ classId, students, onStudentsUpdated }) {
                         {stats.members.map(member => {
                           const level = LEVELS.reduce((acc, l) => member.totalXp >= l.xpRequired ? l : acc, LEVELS[0]);
                           return (
-                            <div key={member.id} className="flex items-center gap-2 p-2 bg-slate-800/50 rounded-lg text-sm">
+                            <div key={member.id} className="flex items-center gap-2 p-2 bg-slate-800/50 rounded-xl border border-slate-700/50 text-sm">
                               <Avatar3D avatar={member.avatar} level={level.level} size="sm" />
                               <div className="flex-1 min-w-0">
-                                <p className="font-bold text-white truncate">{member.name}</p>
-                                <p className={`text-xs ${level.color}`}>Lv.{level.level}</p>
+                                <p className="font-bold text-white truncate text-xs">{member.name}</p>
+                                <p className={`text-[10px] ${level.color}`}>Lv.{level.level} • {member.currentStreak || 0}d streak</p>
                               </div>
-                              <span className="text-yellow-400 font-bold text-xs">{member.xp} XP</span>
+                              <span className="text-yellow-400 font-black text-xs">{member.xp} XP</span>
                             </div>
                           );
                         })}
@@ -1387,13 +1450,25 @@ function GuildManagement({ classId, students, onStudentsUpdated }) {
           </div>
         )}
 
-        {/* Unassigned students */}
+        {/* Unassigned students section */}
         {unassigned.length > 0 && (
-          <div className="mt-6 p-4 bg-slate-700/30 rounded-xl border border-dashed border-slate-600">
-            <h4 className="text-sm font-bold text-slate-400 mb-3">Students Without a Guild ({unassigned.length})</h4>
+          <div className="mt-6 p-5 bg-slate-900/60 rounded-2xl border-2 border-dashed border-amber-500/40">
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+              <h4 className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                <Users className="w-4 h-4" /> Students Without a Guild ({unassigned.length})
+              </h4>
+              <button
+                onClick={() => handleAutoBalance('unassigned')}
+                className="px-3 py-1 bg-yellow-500 text-slate-950 font-black rounded-lg text-xs hover:bg-yellow-400 transition-colors"
+              >
+                Auto-Distribute Now
+              </button>
+            </div>
             <div className="flex flex-wrap gap-2">
               {unassigned.map(s => (
-                <span key={s.id} className="px-3 py-1 bg-slate-800 rounded-full text-sm text-slate-300">{s.name}</span>
+                <span key={s.id} className="px-3 py-1 bg-slate-800 border border-slate-700 rounded-xl text-xs font-bold text-slate-300">
+                  {s.name}
+                </span>
               ))}
             </div>
           </div>

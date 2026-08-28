@@ -1,3 +1,5 @@
+import { GUILDS, GUILD_LEVELS, GUILD_CHALLENGES, getGuildLevelInfo } from "../data/gameData";
+
 // Simulates a backend with a 500ms delay to mimic network latency
 const DELAY = 500;
 const DB_PREFIX = 'lvlup_v2_';
@@ -337,5 +339,217 @@ export const mockBackend = {
       saveDB(db);
     }
     return { success: true };
+  },
+
+  // ================= GUILD 2.0 (MOCK) =================
+  async getGuildLeaderboard(classId) {
+    await wait(DELAY);
+    const db = getDB();
+    const students = (db.students || []).filter(s => s.classId === classId);
+    const guildStats = {};
+
+    GUILDS.forEach(g => {
+      guildStats[g.id] = {
+        id: g.id,
+        name: g.name,
+        color: g.color,
+        emoji: g.emoji,
+        motto: g.motto,
+        totalXp: 0,
+        memberCount: 0,
+        members: [],
+        levelInfo: getGuildLevelInfo(0),
+        challenges: GUILD_CHALLENGES.map(ch => ({
+          ...ch,
+          current: 0,
+          percent: 0,
+          completed: false
+        })),
+        mvps: { champion: null, flamekeeper: null, collabHero: null }
+      };
+    });
+
+    students.forEach(s => {
+      if (s.guild && guildStats[s.guild]) {
+        const g = guildStats[s.guild];
+        const contributedXp = s.guildXpContributed || 0;
+        g.totalXp += contributedXp;
+        g.memberCount += 1;
+        g.members.push({
+          id: s.id,
+          name: s.name,
+          xp: contributedXp,
+          totalXp: s.xp || 0,
+          coins: s.coins || 0,
+          currentStreak: s.currentStreak || 0,
+          completedActivities: s.completedActivities || [],
+          completedBossChallenges: s.completedBossChallenges || [],
+          collaborationCount: s.collaborationCount || 0,
+          claimedGuildChallenges: s.claimedGuildChallenges || [],
+          unlockedAchievements: s.unlockedAchievements || [],
+          avatar: s.avatar || { color: 'default', hat: 'none', accessory: 'none', face: 'happy' }
+        });
+      }
+    });
+
+    Object.keys(guildStats).forEach(guildId => {
+      const g = guildStats[guildId];
+      g.levelInfo = getGuildLevelInfo(g.totalXp);
+      g.members.sort((a, b) => (b.xp || 0) - (a.xp || 0));
+
+      if (g.members.length > 0) {
+        g.mvps.champion = g.members[0];
+        const sortedByStreak = [...g.members].sort((a, b) => (b.currentStreak || 0) - (a.currentStreak || 0));
+        if (sortedByStreak[0]?.currentStreak > 0) g.mvps.flamekeeper = sortedByStreak[0];
+        const sortedByCollab = [...g.members].sort((a, b) => (b.collaborationCount || 0) - (a.collaborationCount || 0));
+        if (sortedByCollab[0]?.collaborationCount > 0) g.mvps.collabHero = sortedByCollab[0];
+      }
+
+      g.challenges = GUILD_CHALLENGES.map(ch => {
+        let currentVal = 0;
+        if (ch.type === 'activities') currentVal = g.members.reduce((acc, m) => acc + (m.completedActivities?.length || 0), 0);
+        else if (ch.type === 'streakers') currentVal = g.members.filter(m => (m.currentStreak || 0) >= 3).length;
+        else if (ch.type === 'paths') currentVal = g.members.reduce((acc, m) => acc + (m.completedActivities?.length || 0), 0);
+        else if (ch.type === 'bosses') currentVal = g.members.reduce((acc, m) => acc + (m.completedBossChallenges?.length || 0), 0);
+        else if (ch.type === 'collab') currentVal = g.members.reduce((acc, m) => acc + (m.collaborationCount || 0), 0);
+
+        const target = ch.target || 1;
+        return {
+          ...ch,
+          current: currentVal,
+          percent: Math.min(100, Math.round((currentVal / target) * 100)),
+          completed: currentVal >= target
+        };
+      });
+    });
+
+    return guildStats;
+  },
+
+  async getGuildHall(classId, guildId) {
+    await wait(DELAY);
+    const db = getDB();
+    if (!db.guildHalls) db.guildHalls = {};
+    const key = `${classId}_${guildId}`;
+    return db.guildHalls[key] || {
+      id: guildId,
+      trophies: [],
+      description: '',
+      banner: 'default',
+      spiritFlame: 0,
+      recentCheers: [],
+      notice: null
+    };
+  },
+
+  async updateGuildHall(classId, guildId, data) {
+    await wait(DELAY);
+    const db = getDB();
+    if (!db.guildHalls) db.guildHalls = {};
+    const key = `${classId}_${guildId}`;
+    db.guildHalls[key] = {
+      ...(db.guildHalls[key] || { id: guildId, trophies: [], description: '', banner: 'default', spiritFlame: 0, recentCheers: [] }),
+      ...data,
+      updatedAt: new Date().toISOString()
+    };
+    saveDB(db);
+    return true;
+  },
+
+  async addGuildHallTrophy(classId, guildId, trophy) {
+    await wait(DELAY);
+    const hall = await this.getGuildHall(classId, guildId);
+    const trophies = [...(hall.trophies || []), { ...trophy, awardedAt: new Date().toISOString() }];
+    return this.updateGuildHall(classId, guildId, { trophies });
+  },
+
+  async sendGuildCheer(classId, senderId, senderName, receiverId, receiverName, guildId) {
+    await wait(DELAY);
+    const db = getDB();
+    const sender = (db.students || []).find(s => s.id === senderId);
+    const receiver = (db.students || []).find(s => s.id === receiverId);
+    if (sender) {
+      sender.xp = (sender.xp || 0) + 10;
+      sender.guildXpContributed = (sender.guildXpContributed || 0) + 10;
+    }
+    if (receiver) {
+      receiver.xp = (receiver.xp || 0) + 15;
+      receiver.guildXpContributed = (receiver.guildXpContributed || 0) + 15;
+    }
+    saveDB(db);
+
+    if (guildId) {
+      const hall = await this.getGuildHall(classId, guildId);
+      const spiritFlame = (hall.spiritFlame || 0) + 1;
+      const recentCheers = [
+        { senderName, receiverName, timestamp: new Date().toISOString() },
+        ...(hall.recentCheers || []).slice(0, 9)
+      ];
+      await this.updateGuildHall(classId, guildId, { spiritFlame, recentCheers });
+    }
+    return { success: true };
+  },
+
+  async claimGuildChallengeReward(classId, studentId, guildId, challengeId, rewardXp, rewardCoins) {
+    await wait(DELAY);
+    const db = getDB();
+    const student = (db.students || []).find(s => s.id === studentId);
+    if (student) {
+      const claimed = student.claimedGuildChallenges || [];
+      if (claimed.includes(challengeId)) return { alreadyClaimed: true };
+      student.xp = (student.xp || 0) + (rewardXp || 100);
+      student.coins = (student.coins || 0) + (rewardCoins || 50);
+      student.guildXpContributed = (student.guildXpContributed || 0) + (rewardXp || 100);
+      student.claimedGuildChallenges = [...claimed, challengeId];
+      saveDB(db);
+      return { success: true, rewardXp, rewardCoins };
+    }
+    throw new Error('Student not found');
+  },
+
+  async autoBalanceGuilds(classId, mode = 'unassigned') {
+    await wait(DELAY);
+    const db = getDB();
+    const students = (db.students || []).filter(s => s.classId === classId);
+    const targetStudents = mode === 'all' ? [...students] : students.filter(s => !s.guild);
+    if (targetStudents.length === 0) return { updatedCount: 0 };
+
+    const guildCounts = {};
+    GUILDS.forEach(g => {
+      guildCounts[g.id] = mode === 'all' ? 0 : students.filter(s => s.guild === g.id).length;
+    });
+
+    let updatedCount = 0;
+    targetStudents.forEach(student => {
+      const targetGuild = Object.keys(guildCounts).reduce((minId, currentId) => {
+        return guildCounts[currentId] < guildCounts[minId] ? currentId : minId;
+      }, GUILDS[0].id);
+
+      guildCounts[targetGuild]++;
+      student.guild = targetGuild;
+      updatedCount++;
+    });
+
+    saveDB(db);
+    return { updatedCount };
+  },
+
+  async rewardGuild(classId, guildId, rewardType, rewardValue) {
+    await wait(DELAY);
+    const db = getDB();
+    const students = (db.students || []).filter(s => s.classId === classId && s.guild === guildId);
+    students.forEach(student => {
+      if (rewardType === 'xp') {
+        student.xp = (student.xp || 0) + rewardValue;
+        student.guildXpContributed = (student.guildXpContributed || 0) + rewardValue;
+      } else if (rewardType === 'coins') {
+        student.coins = (student.coins || 0) + rewardValue;
+      } else if (rewardType === 'achievement') {
+        const current = student.unlockedAchievements || [];
+        if (!current.includes(rewardValue)) student.unlockedAchievements = [...current, rewardValue];
+      }
+    });
+    saveDB(db);
+    return students.length;
   }
 };

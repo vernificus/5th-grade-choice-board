@@ -63,13 +63,102 @@ export const ACHIEVEMENTS = [
 
 // Team Guilds
 export const GUILDS = [
-  { id: 'dragons', name: 'Fire Dragons', color: 'bg-red-600', emoji: '🐉', motto: 'Burn bright, learn fast!' },
-  { id: 'wolves', name: 'Shadow Wolves', color: 'bg-purple-600', emoji: '🐺', motto: 'Together we hunt knowledge!' },
-  { id: 'phoenix', name: 'Golden Phoenix', color: 'bg-yellow-600', emoji: '🦅', motto: 'Rise from every challenge!' },
-  { id: 'sharks', name: 'Ocean Sharks', color: 'bg-blue-600', emoji: '🦈', motto: 'Dive deep into learning!' },
+  {
+    id: 'dragons',
+    name: 'Fire Dragons',
+    color: 'bg-red-600',
+    borderColor: 'border-red-500',
+    gradient: 'from-red-600 to-orange-600',
+    emoji: '🐉',
+    motto: 'Burn bright, learn fast!',
+    symbol: 'Flame & Claws',
+    exclusiveItem: 'dragon_horns'
+  },
+  {
+    id: 'wolves',
+    name: 'Shadow Wolves',
+    color: 'bg-purple-600',
+    borderColor: 'border-purple-500',
+    gradient: 'from-purple-600 to-indigo-600',
+    emoji: '🐺',
+    motto: 'Together we hunt knowledge!',
+    symbol: 'Moon & Fang',
+    exclusiveItem: 'wolf_cowl'
+  },
+  {
+    id: 'phoenix',
+    name: 'Golden Phoenix',
+    color: 'bg-yellow-600',
+    borderColor: 'border-yellow-500',
+    gradient: 'from-yellow-500 to-amber-600',
+    emoji: '🦅',
+    motto: 'Rise from every challenge!',
+    symbol: 'Sun & Feather',
+    exclusiveItem: 'phoenix_crest'
+  },
+  {
+    id: 'sharks',
+    name: 'Ocean Sharks',
+    color: 'bg-blue-600',
+    borderColor: 'border-blue-500',
+    gradient: 'from-blue-600 to-cyan-600',
+    emoji: '🦈',
+    motto: 'Dive deep into learning!',
+    symbol: 'Tide & Fin',
+    exclusiveItem: 'shark_fin'
+  },
 ];
 
-// Guild Hall Trophy Types (awarded by teachers to guilds)
+// Guild Progression Levels (1 - 10)
+export const GUILD_LEVELS = [
+  { level: 1, name: 'Novice Clan', minXp: 0, perk: 'Basic Guild Hall & Emblems', perkIcon: '🛡️', themeUnlock: 'default' },
+  { level: 2, name: 'Iron Vanguard', minXp: 1000, perk: '+5% Coin Surge on Quests', perkIcon: '🪙', themeUnlock: 'flames' },
+  { level: 3, name: 'Bronze Sentinels', minXp: 2500, perk: 'Daily Guild High-Five Boost (+15 XP)', perkIcon: '⚡', themeUnlock: 'stars' },
+  { level: 4, name: 'Silver Legion', minXp: 5000, perk: 'Team Mystery Box Luck Surge', perkIcon: '🎁', themeUnlock: 'forest' },
+  { level: 5, name: 'Gold Crusaders', minXp: 8000, perk: 'Exclusive Guild Avatar Cosmetics', perkIcon: '👑', themeUnlock: 'ocean' },
+  { level: 6, name: 'Platinum Titans', minXp: 12000, perk: 'Guild Crest Aura & Banner Flair', perkIcon: '✨', themeUnlock: 'crystal' },
+  { level: 7, name: 'Emerald Phoenixes', minXp: 17000, perk: '+10% Collaboration Activity XP', perkIcon: '🤝', themeUnlock: 'volcano' },
+  { level: 8, name: 'Ruby Conquerors', minXp: 23000, perk: 'Weekly Team Bonus Mystery Drop', perkIcon: '💎', themeUnlock: 'cyber' },
+  { level: 9, name: 'Diamond Apex', minXp: 30000, perk: 'Celestial Castle Hall Theme', perkIcon: '🏰', themeUnlock: 'celestial' },
+  { level: 10, name: 'Mythic Immortals', minXp: 40000, perk: 'Legendary Guild Crown & Immortal Banner', perkIcon: '🌟', themeUnlock: 'mythic' },
+];
+
+export function getGuildLevelInfo(totalXp = 0) {
+  let current = GUILD_LEVELS[0];
+  let next = GUILD_LEVELS[1] || null;
+
+  for (let i = GUILD_LEVELS.length - 1; i >= 0; i--) {
+    if (totalXp >= GUILD_LEVELS[i].minXp) {
+      current = GUILD_LEVELS[i];
+      next = GUILD_LEVELS[i + 1] || null;
+      break;
+    }
+  }
+
+  let progress = 100;
+  let xpNeeded = 0;
+  if (next) {
+    const range = next.minXp - current.minXp;
+    const earned = totalXp - current.minXp;
+    progress = Math.min(100, Math.max(0, Math.round((earned / range) * 100)));
+    xpNeeded = next.minXp - totalXp;
+  }
+
+  return {
+    level: current.level,
+    name: current.name,
+    perk: current.perk,
+    perkIcon: current.perkIcon,
+    currentXp: totalXp,
+    nextLevelXp: next ? next.minXp : totalXp,
+    xpNeeded,
+    progress,
+    isMax: !next,
+    unlockedThemes: GUILD_LEVELS.filter(l => l.level <= current.level).map(l => l.themeUnlock)
+  };
+}
+
+// Guild Hall Trophy Types (awarded by teachers or earned through guild milestones)
 export const GUILD_TROPHIES = [
   { id: 'gt_teamwork', title: 'Teamwork Trophy', icon: '🤝', desc: 'Outstanding collaboration' },
   { id: 'gt_knowledge', title: 'Knowledge Cup', icon: '📚', desc: 'Exceptional learning' },
@@ -79,24 +168,76 @@ export const GUILD_TROPHIES = [
   { id: 'gt_mvp', title: 'MVP Crown', icon: '👑', desc: 'Most valuable guild' },
   { id: 'gt_rising', title: 'Rising Star', icon: '🌟', desc: 'Most improved guild' },
   { id: 'gt_spirit', title: 'Spirit Award', icon: '💫', desc: 'Best guild spirit' },
+  { id: 'gt_boss', title: 'Titan Slayer', icon: '⚔️', desc: 'Conquered weekly bosses together' },
+  { id: 'gt_level10', title: 'Mythic Hall', icon: '🏰', desc: 'Reached maximum Guild Level 10' },
 ];
 
-// Guild Hall Banner Themes
+// Guild Hall Banner Themes (unlocked as guild levels up)
 export const GUILD_BANNERS = [
-  { id: 'default', name: 'Classic', desc: 'The default guild banner' },
-  { id: 'flames', name: 'Flames', desc: 'A fiery banner of determination' },
-  { id: 'stars', name: 'Starfield', desc: 'A cosmic banner of knowledge' },
-  { id: 'forest', name: 'Enchanted Forest', desc: 'A nature-themed banner' },
-  { id: 'ocean', name: 'Deep Ocean', desc: 'An aquatic banner of mystery' },
-  { id: 'crystal', name: 'Crystal Cave', desc: 'A sparkling crystalline banner' },
+  { id: 'default', name: 'Classic Fortress', desc: 'The default stone guild fortress', minLevel: 1 },
+  { id: 'flames', name: 'Inferno Citadel', desc: 'A blazing citadel of determination', minLevel: 2 },
+  { id: 'stars', name: 'Starfield Sanctum', desc: 'A cosmic sanctum of deep knowledge', minLevel: 3 },
+  { id: 'forest', name: 'Enchanted Sylvan', desc: 'An ancient canopy fortress', minLevel: 4 },
+  { id: 'ocean', name: 'Atlantis Depths', desc: 'An aquatic palace of currents', minLevel: 5 },
+  { id: 'crystal', name: 'Prismatic Caverns', desc: 'A sparkling crystal redoubt', minLevel: 6 },
+  { id: 'volcano', name: 'Volcanic Caldera', desc: 'Molten magma battlegrounds', minLevel: 7 },
+  { id: 'cyber', name: 'Cyber Neon Nexus', desc: 'Futuristic high-tech command center', minLevel: 8 },
+  { id: 'celestial', name: 'Celestial Spire', desc: 'Floating spire among the clouds', minLevel: 9 },
+  { id: 'mythic', name: 'Mythic Pantheon', desc: 'The golden realm of immortal champions', minLevel: 10 },
 ];
 
-// Guild Challenges (weekly goals for entire guild)
+// Guild Challenges (weekly collaborative goals for entire guild)
 export const GUILD_CHALLENGES = [
-  { id: 'gc1', title: 'Knowledge Blitz', desc: 'Guild members complete 10 activities total', target: 10, type: 'activities', reward: 100, emoji: '⚔️' },
-  { id: 'gc2', title: 'Streak Squad', desc: '3 guild members maintain a 3+ day streak', target: 3, type: 'streakers', reward: 150, emoji: '🔥' },
-  { id: 'gc3', title: 'Path Masters', desc: 'Guild members complete activities from all 3 paths', target: 3, type: 'paths', reward: 125, emoji: '🗺️' },
-  { id: 'gc4', title: 'Boss Rush', desc: '2 guild members defeat the weekly boss', target: 2, type: 'bosses', reward: 200, emoji: '👹' },
+  {
+    id: 'gc1',
+    title: 'Knowledge Blitz',
+    desc: 'Guild members complete 10 activities total this week',
+    target: 10,
+    type: 'activities',
+    reward: 120,
+    coinReward: 50,
+    emoji: '⚔️'
+  },
+  {
+    id: 'gc2',
+    title: 'Streak Squad',
+    desc: 'At least 3 guild members hold a 3+ day streak',
+    target: 3,
+    type: 'streakers',
+    reward: 150,
+    coinReward: 75,
+    emoji: '🔥'
+  },
+  {
+    id: 'gc3',
+    title: 'Path Masters',
+    desc: 'Guild members complete at least 2 activities from every learning path',
+    target: 6,
+    type: 'paths',
+    reward: 140,
+    coinReward: 60,
+    emoji: '🗺️'
+  },
+  {
+    id: 'gc4',
+    title: 'Boss Rush Squad',
+    desc: '2 or more guild members defeat the weekly boss challenge',
+    target: 2,
+    type: 'bosses',
+    reward: 200,
+    coinReward: 100,
+    emoji: '👹'
+  },
+  {
+    id: 'gc5',
+    title: 'Collaboration Crusade',
+    desc: 'Guild members complete 5 Collaboration-type activities together',
+    target: 5,
+    type: 'collab',
+    reward: 160,
+    coinReward: 80,
+    emoji: '🤝'
+  }
 ];
 
 // Avatar Items
@@ -129,6 +270,11 @@ export const AVATAR_ITEMS = {
     { id: 'tophat', name: 'Top Hat', cost: 125 },
     { id: 'viking', name: 'Viking Helm', cost: 175 },
     { id: 'beanie', name: 'Cozy Beanie', cost: 75 },
+    { id: 'dragon_horns', name: 'Dragon Horns', cost: 200, guildExclusive: 'dragons' },
+    { id: 'wolf_cowl', name: 'Wolf Headdress', cost: 200, guildExclusive: 'wolves' },
+    { id: 'phoenix_crest', name: 'Phoenix Crest', cost: 200, guildExclusive: 'phoenix' },
+    { id: 'shark_fin', name: 'Shark Fin Helm', cost: 200, guildExclusive: 'sharks' },
+    { id: 'mythic_crown', name: 'Mythic Guild Crown', cost: 350 },
   ],
   accessories: [
     { id: 'none', name: 'None', cost: 0 },
@@ -139,6 +285,8 @@ export const AVATAR_ITEMS = {
     { id: 'lightning', name: 'Lightning Bolt', cost: 150 },
     { id: 'cape', name: 'Hero Cape', cost: 175 },
     { id: 'shield', name: 'Knight Shield', cost: 200 },
+    { id: 'guild_cloak', name: 'Guild Banner Cloak', cost: 225 },
+    { id: 'phoenix_wings', name: 'Phoenix Wings', cost: 275 },
   ],
   faces: [
     { id: 'happy', name: 'Happy', cost: 0 },
