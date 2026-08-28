@@ -290,5 +290,35 @@ export const mockBackend = {
       return { success: true };
     }
     throw new Error('Class not found');
+  },
+
+  // ================= ACTIVITY LIBRARY =================
+  async publishActivity(activity) {
+    await wait(DELAY);
+    const db = getDB();
+    if (!db.activity_library) {
+      db.activity_library = [];
+    }
+    const newActivity = {
+      title: activity.title || 'Untitled Activity',
+      desc: activity.desc || '',
+      type: activity.type || 'Low Tech',
+      xp: Number(activity.xp) || 100,
+      steps: Array.isArray(activity.steps) ? activity.steps : [{ text: '' }],
+      proTip: activity.proTip || '',
+      id: 'lib_' + Date.now(),
+      authorId: 'teacher_mock',
+      authorName: 'Demo Teacher',
+      publishedAt: new Date().toISOString()
+    };
+    db.activity_library.push(newActivity);
+    saveDB(db);
+    return newActivity;
+  },
+
+  async getPublicActivities() {
+    await wait(DELAY);
+    const db = getDB();
+    return db.activity_library || [];
   }
 };

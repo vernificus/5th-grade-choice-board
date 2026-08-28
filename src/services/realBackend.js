@@ -402,12 +402,26 @@ export const realBackend = {
     try {
       // Get current user to add as author
       const user = auth.currentUser;
-      if (!user) throw new Error("Must be logged in to publish");
+      if (!user) throw new Error("Must be logged in to publish activities to the library");
 
+      // Sanitize fields to ensure Firestore compatibility (no undefined properties)
       const newActivity = {
-        ...activity,
+        title: activity.title || "Untitled Activity",
+        desc: activity.desc || "",
+        type: activity.type || "Low Tech",
+        xp: Number(activity.xp) || 100,
+        steps: Array.isArray(activity.steps)
+          ? activity.steps.map(s => {
+              if (typeof s === 'string') return { text: s };
+              const cleanStep = { text: s?.text || '' };
+              if (s?.link) cleanStep.link = s.link;
+              if (s?.linkText) cleanStep.linkText = s.linkText;
+              return cleanStep;
+            })
+          : [{ text: '' }],
+        proTip: activity.proTip || "",
         authorId: user.uid,
-        authorName: user.displayName || "Unknown Teacher",
+        authorName: user.displayName || user.email?.split('@')[0] || "Teacher",
         publishedAt: serverTimestamp()
       };
       const docRef = await addDoc(collection(db, "activity_library"), newActivity);
@@ -423,8 +437,20 @@ export const realBackend = {
       const q = query(collection(db, "activity_library"));
       const querySnapshot = await getDocs(q);
       const activities = [];
-      querySnapshot.forEach((doc) => {
-        activities.push({ id: doc.id, ...doc.data() });
+      querySnapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        activities.push({
+          id: docSnap.id,
+          title: data.title || "Untitled Activity",
+          desc: data.desc || "",
+          type: data.type || "Low Tech",
+          xp: typeof data.xp === 'number' ? data.xp : 100,
+          steps: Array.isArray(data.steps) ? data.steps : [{ text: '' }],
+          proTip: data.proTip || "",
+          authorName: data.authorName || "Teacher",
+          authorId: data.authorId || "",
+          publishedAt: data.publishedAt || null
+        });
       });
       return activities;
     } catch (error) {

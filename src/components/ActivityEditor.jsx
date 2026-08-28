@@ -4,7 +4,7 @@ import { LEARNING_PATHS as DEFAULT_PATHS, PATH_COLORS } from '../data/gameData';
 import {
   Save, Plus, Trash2, BookOpen, Search, X, ChevronDown, ChevronUp,
   GripVertical, Link2, ExternalLink, Eye, EyeOff, Bold, Italic, Type,
-  ArrowUp, ArrowDown, Copy, ChevronRight, FileText
+  ArrowUp, ArrowDown, Copy, ChevronRight, FileText, Loader2, Check, Filter, Sparkles
 } from 'lucide-react';
 import DocumentImporterModal from './DocumentImporterModal';
 
@@ -267,8 +267,13 @@ export default function ActivityEditor({ classId, paths: passedPaths, onChange, 
   const [learningPaths, setLearningPaths] = useState(passedPaths || DEFAULT_PATHS);
   const [libraryActivities, setLibraryActivities] = useState([]);
   const [showLibrary, setShowLibrary] = useState(false);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [libraryError, setLibraryError] = useState(null);
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState('All');
+  const [importedToast, setImportedToast] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showDocImporter, setShowDocImporter] = useState(false);
 
   // Which activity is currently being edited (pathId + activityId)
   const [editingPathId, setEditingPathId] = useState(null);
@@ -383,11 +388,18 @@ export default function ActivityEditor({ classId, paths: passedPaths, onChange, 
   }, [classId, passedPaths, categoryNames, categorySubtitles]);
 
   const loadLibrary = async () => {
-    setLoading(true);
-    const activities = await backend.getPublicActivities();
-    setLibraryActivities(activities);
+    setLibraryLoading(true);
+    setLibraryError(null);
     setShowLibrary(true);
-    setLoading(false);
+    try {
+      const activities = await backend.getPublicActivities();
+      setLibraryActivities(activities || []);
+    } catch (err) {
+      console.error("Error loading library activities:", err);
+      setLibraryError(err.message || "Failed to load library activities");
+    } finally {
+      setLibraryLoading(false);
+    }
   };
 
   const handleUpdateActivity = (pathId, activityId, field, value) => {
@@ -479,9 +491,13 @@ export default function ActivityEditor({ classId, paths: passedPaths, onChange, 
         steps: normalizeSteps(activity.steps),
       };
       delete newActivity.publishedAt;
+      delete newActivity.authorId;
+      delete newActivity.authorName;
       return { ...path, options: [...path.options, newActivity] };
     }));
-    setShowLibrary(false);
+    const targetPath = learningPaths.find(p => p.id === targetPathId);
+    setImportedToast(`Imported "${activity.title}" to ${targetPath?.title || 'choice board'}!`);
+    setTimeout(() => setImportedToast(null), 3000);
   };
 
   const handlePublish = async (activity) => {
@@ -530,59 +546,28 @@ export default function ActivityEditor({ classId, paths: passedPaths, onChange, 
     handleUpdateActivity(editingPathId, editingActivityId, 'steps', newSteps);
   };
 
-  // ---- Library modal ----
-  if (showLibrary) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="library-dialog-title" onKeyDown={(e) => e.key === 'Escape' && setShowLibrary(false)}>
-        <div className="bg-slate-800 border-2 border-blue-500 rounded-2xl w-full max-w-4xl p-6 h-[80vh] flex flex-col">
-          <div className="flex justify-between items-center mb-4">
-            <h3 id="library-dialog-title" className="text-2xl font-bold text-white flex items-center gap-2">
-              <BookOpen className="w-6 h-6 text-blue-400" aria-hidden="true" /> Activity Library
-            </h3>
-            <button onClick={() => setShowLibrary(false)} aria-label="Close activity library"><X className="w-6 h-6 text-slate-400 hover:text-white" aria-hidden="true" /></button>
-          </div>
+  const getTypeBadgeClass = (type) => {
+    switch (type) {
+      case 'Low Tech': return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
+      case 'High Tech': return 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40';
+      case 'Collaboration': return 'bg-purple-500/20 text-purple-300 border-purple-500/40';
+      case 'Reflection': return 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+      case 'Creation': return 'bg-pink-500/20 text-pink-300 border-pink-500/40';
+      default: return 'bg-blue-500/20 text-blue-300 border-blue-500/40';
+    }
+  };
 
-          <div className="mb-4 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" aria-hidden="true" />
-            <label htmlFor="library-search" className="sr-only">Search activities</label>
-            <input
-              id="library-search"
-              type="search"
-              placeholder="Search activities..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-slate-700 rounded-lg text-white border border-slate-600 focus:border-blue-500 outline-none"
-            />
-          </div>
+  const activityTypes = ['All', 'Low Tech', 'High Tech', 'Collaboration', 'Reflection', 'Creation'];
 
-          <div className="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-4">
-            {libraryActivities
-              .filter(a => a.title.toLowerCase().includes(searchQuery.toLowerCase()))
-              .map(activity => (
-              <div key={activity.id} className="bg-slate-700 p-4 rounded-xl border border-slate-600">
-                <h4 className="font-bold text-white">{activity.title}</h4>
-                <p className="text-sm text-slate-400 mb-2">{activity.desc}</p>
-                <div className="flex gap-2 mt-2 flex-wrap">
-                  {learningPaths.map(path => (
-                    <button
-                      key={path.id}
-                      onClick={() => handleImport(activity, path.id)}
-                      className="text-xs bg-blue-600 hover:bg-blue-500 px-2 py-1 rounded text-white"
-                    >
-                      Import to {path.title}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Document Importer state
-  const [showDocImporter, setShowDocImporter] = useState(false);
+  const filteredLibraryActivities = (libraryActivities || []).filter(activity => {
+    const q = searchQuery.toLowerCase().trim();
+    const titleMatch = (activity.title || '').toLowerCase().includes(q);
+    const descMatch = (activity.desc || '').toLowerCase().includes(q);
+    const authorMatch = (activity.authorName || '').toLowerCase().includes(q);
+    const matchesSearch = !q || titleMatch || descMatch || authorMatch;
+    const matchesType = selectedTypeFilter === 'All' || activity.type === selectedTypeFilter;
+    return matchesSearch && matchesType;
+  });
 
   const handleImportDocActivities = (importedActivities) => {
     if (!importedActivities || importedActivities.length === 0) return;
@@ -646,6 +631,208 @@ export default function ActivityEditor({ classId, paths: passedPaths, onChange, 
         onImportActivities={handleImportDocActivities}
         categoryNames={categoryNames || {}}
       />
+
+      {/* Activity Library Modal Overlay */}
+      {showLibrary && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="library-dialog-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowLibrary(false);
+          }}
+          onKeyDown={(e) => e.key === 'Escape' && setShowLibrary(false)}
+        >
+          <div className="bg-slate-800 border-2 border-blue-500/80 rounded-2xl w-full max-w-5xl p-6 h-[85vh] flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="flex justify-between items-center pb-4 border-b border-slate-700">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-400">
+                  <BookOpen className="w-5 h-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <h3 id="library-dialog-title" className="text-xl font-black text-white flex items-center gap-2">
+                    Activity Library
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                      {libraryActivities.length} {libraryActivities.length === 1 ? 'activity' : 'activities'}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Browse and import ready-to-use activities shared by educators into your learning paths.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowLibrary(false)}
+                className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-xl transition-colors"
+                aria-label="Close activity library"
+              >
+                <X className="w-5 h-5" aria-hidden="true" />
+              </button>
+            </div>
+
+            {/* Imported Toast Feedback */}
+            {importedToast && (
+              <div className="mt-3 p-3 bg-emerald-950/80 border border-emerald-500/50 rounded-xl flex items-center gap-2 text-emerald-300 text-sm font-semibold animate-in fade-in slide-in-from-top-2">
+                <Check className="w-4 h-4 text-emerald-400" />
+                <span>{importedToast}</span>
+              </div>
+            )}
+
+            {/* Search & Filter Bar */}
+            <div className="py-4 space-y-3">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" aria-hidden="true" />
+                  <label htmlFor="library-search" className="sr-only">Search activities</label>
+                  <input
+                    id="library-search"
+                    type="search"
+                    placeholder="Search by title, description, or teacher..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-900/80 rounded-xl text-white text-sm border border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-500"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                      aria-label="Clear search"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Type Filter Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+                <span className="text-slate-400 font-bold mr-1 flex items-center gap-1">
+                  <Filter className="w-3.5 h-3.5" /> Type:
+                </span>
+                {activityTypes.map(type => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setSelectedTypeFilter(type)}
+                    className={`px-3 py-1 rounded-lg font-bold transition-all whitespace-nowrap ${
+                      selectedTypeFilter === type
+                        ? 'bg-blue-600 text-white shadow-md'
+                        : 'bg-slate-700/70 text-slate-300 hover:bg-slate-700 hover:text-white'
+                    }`}
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Activities Content Area */}
+            <div className="flex-1 overflow-y-auto pr-1">
+              {libraryLoading ? (
+                <div className="h-full flex flex-col items-center justify-center py-12 text-center">
+                  <Loader2 className="w-8 h-8 text-blue-400 animate-spin mb-3" />
+                  <p className="text-sm font-semibold text-slate-300">Loading library activities...</p>
+                </div>
+              ) : libraryError ? (
+                <div className="h-full flex flex-col items-center justify-center py-12 text-center p-6 bg-slate-900/50 rounded-xl border border-red-500/30">
+                  <p className="text-sm font-bold text-red-400 mb-2">Error Loading Library</p>
+                  <p className="text-xs text-slate-400 max-w-md mb-4">{libraryError}</p>
+                  <button
+                    type="button"
+                    onClick={loadLibrary}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-colors"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              ) : filteredLibraryActivities.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center py-12 text-center p-8 bg-slate-900/40 rounded-2xl border border-slate-700/60">
+                  <div className="w-14 h-14 bg-slate-800 rounded-2xl flex items-center justify-center mb-3 text-slate-500">
+                    <BookOpen className="w-7 h-7" />
+                  </div>
+                  <h4 className="text-base font-bold text-slate-200 mb-1">
+                    {libraryActivities.length === 0 ? "No activities published yet" : "No matching activities"}
+                  </h4>
+                  <p className="text-xs text-slate-400 max-w-sm mb-4">
+                    {libraryActivities.length === 0
+                      ? "Publish your own choice board activities to the public library using the 'Publish' button on any activity card!"
+                      : "Try clearing your search query or selecting a different activity type filter."}
+                  </p>
+                  {(searchQuery || selectedTypeFilter !== 'All') && (
+                    <button
+                      type="button"
+                      onClick={() => { setSearchQuery(''); setSelectedTypeFilter('All'); }}
+                      className="px-3.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-xs font-bold transition-colors"
+                    >
+                      Reset Filters
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-4">
+                  {filteredLibraryActivities.map(activity => (
+                    <div
+                      key={activity.id}
+                      className="bg-slate-900/70 hover:bg-slate-900/90 p-5 rounded-2xl border border-slate-700/80 hover:border-slate-600 transition-all flex flex-col justify-between shadow-lg"
+                    >
+                      <div className="space-y-3">
+                        {/* Badges & XP Header */}
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className={`text-[11px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${getTypeBadgeClass(activity.type)}`}>
+                            {activity.type || 'Low Tech'}
+                          </span>
+                          <span className="text-xs font-black text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-full">
+                            +{activity.xp || 100} XP
+                          </span>
+                        </div>
+
+                        {/* Title & Desc */}
+                        <div>
+                          <h4 className="text-base font-black text-white">{activity.title}</h4>
+                          {activity.desc && (
+                            <p className="text-xs text-slate-300 mt-1 line-clamp-3 leading-relaxed">
+                              {activity.desc}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Steps and ProTip preview */}
+                        <div className="flex items-center gap-3 text-[11px] text-slate-400 flex-wrap">
+                          <span>📋 {activity.steps?.length || 1} {activity.steps?.length === 1 ? 'step' : 'steps'}</span>
+                          {activity.proTip && <span>💡 Pro Tip included</span>}
+                          {activity.authorName && (
+                            <span className="truncate">👤 {activity.authorName}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Import Action Row */}
+                      <div className="mt-4 pt-3 border-t border-slate-800">
+                        <span className="text-[11px] font-bold text-slate-400 block mb-2">Import to Path:</span>
+                        <div className="flex gap-1.5 flex-wrap">
+                          {learningPaths.map(path => (
+                            <button
+                              key={path.id}
+                              type="button"
+                              onClick={() => handleImport(activity, path.id)}
+                              className="text-xs font-bold bg-blue-600/90 hover:bg-blue-500 text-white px-2.5 py-1.5 rounded-lg transition-all shadow hover:shadow-blue-500/20 active:scale-95 truncate max-w-[180px]"
+                              title={`Import to ${path.title}`}
+                            >
+                              + {path.title}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Two-panel layout: sidebar + editor */}
       <div className="flex flex-col lg:flex-row gap-6">
