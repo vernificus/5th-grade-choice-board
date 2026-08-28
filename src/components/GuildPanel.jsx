@@ -151,8 +151,8 @@ export default function GuildPanel({ currentGuild, onJoinGuild, guildXp, classId
     mythic: 'from-amber-950 via-yellow-900 to-purple-950',
   };
 
-  // If user hasn't joined a guild yet:
-  if (!currentGuild) {
+  // If user hasn't joined a guild yet or invalid guild:
+  if (!currentGuild || !guild) {
     return (
       <div className="mb-6">
         <button

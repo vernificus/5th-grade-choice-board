@@ -1100,7 +1100,10 @@ function InstructionModal({ activity, path, onSubmit, onClose, dailyQuest, daily
 }
 
 // ============== GAME CONTENT ==============
-function GameContent() {
+function GameContent({ emulatedClassId } = {}) {
+  const { user } = useAuth();
+  const effectiveClassId = user?.classId || emulatedClassId;
+
   const {
     gameState,
     submissions,
@@ -1122,9 +1125,7 @@ function GameContent() {
     setShowAchievement,
     showMysteryReward,
     setShowMysteryReward,
-  } = useGameState();
-
-  const { user } = useAuth();
+  } = useGameState(effectiveClassId);
 
   const [selectedPath, setSelectedPath] = useState({});
   const [activeInstruction, setActiveInstruction] = useState(null);
@@ -1140,16 +1141,20 @@ function GameContent() {
 
   const dailyQuest = getDailyQuest();
 
-  // Load class spotlight
-  useEffect(() => {
-    if (user && user.classId) {
-      backend.getClass(user.classId).then(cls => {
+  const refreshClassData = useCallback(() => {
+    if (effectiveClassId) {
+      backend.getClass(effectiveClassId).then(cls => {
         if (cls && cls.spotlight) {
           setClassSpotlight(cls.spotlight);
         }
-      });
+      }).catch(e => console.error("Error loading class spotlight", e));
     }
-  }, [user]);
+  }, [effectiveClassId]);
+
+  // Load class spotlight
+  useEffect(() => {
+    refreshClassData();
+  }, [refreshClassData]);
 
   // Helper to extract pending status safely
   const pendingActivities = submissions ? submissions.filter(s => s.status === 'pending' && !s.isBoss).map(s => s.activityId) : [];
@@ -1269,7 +1274,7 @@ function GameContent() {
           currentGuild={gameState.guild}
           onJoinGuild={joinGuild}
           guildXp={gameState.guildXpContributed}
-          classId={user?.classId}
+          classId={effectiveClassId}
           gameState={{ id: user?.id, name: gameState.playerName, ...gameState }}
           onStateUpdate={refreshClassData}
         />
@@ -1340,9 +1345,9 @@ function GameContent() {
         />
       )}
 
-      {showLeaderboard && user?.classId && <Leaderboard classId={user.classId} currentPlayerId={user.id} onClose={() => setShowLeaderboard(false)} />}
+      {showLeaderboard && effectiveClassId && <Leaderboard classId={effectiveClassId} currentPlayerId={user?.id} onClose={() => setShowLeaderboard(false)} />}
       {showTrophyCase && <TrophyCase achievements={gameState.unlockedAchievements} onClose={() => setShowTrophyCase(false)} />}
-      {showAvatarBuilder && <AvatarBuilder gameState={gameState} getCurrentLevel={getCurrentLevel} onBuy={buyAvatarItem} onEquip={equipAvatarItem} onClose={() => setShowAvatarBuilder(false)} onSetName={setPlayerName} classId={user?.classId} userId={user?.id} />}
+      {showAvatarBuilder && <AvatarBuilder gameState={gameState} getCurrentLevel={getCurrentLevel} onBuy={buyAvatarItem} onEquip={equipAvatarItem} onClose={() => setShowAvatarBuilder(false)} onSetName={setPlayerName} classId={effectiveClassId} userId={user?.id} />}
       {showMySubmissions && <MySubmissions submissions={submissions} onClose={() => setShowMySubmissions(false)} />}
       {showMysteryReward && <MysteryBoxModal reward={showMysteryReward} onClose={() => setShowMysteryReward(null)} />}
       {showLevelUp && newLevel && <LevelUpModal level={newLevel} avatar={gameState.avatar} onClose={() => setShowLevelUp(false)} />}
@@ -1389,6 +1394,20 @@ function GameContent() {
 function AppContent() {
   const { user, loading } = useAuth();
   const [activeViewMode, setActiveViewMode] = useState(null); // 'admin' | 'teacher' | 'student'
+  const [emulationClasses, setEmulationClasses] = useState([]);
+  const [emulatedClassId, setEmulatedClassId] = useState(null);
+
+  // Load teacher's or admin's classes for student emulation
+  useEffect(() => {
+    if (user && (user.role === 'teacher' || user.role === 'admin')) {
+      backend.getClasses(user.id).then(clsList => {
+        if (clsList && clsList.length > 0) {
+          setEmulationClasses(clsList);
+          setEmulatedClassId(prev => prev || clsList[0].id);
+        }
+      }).catch(e => console.error("Error loading emulation classes", e));
+    }
+  }, [user]);
 
   // Set default view mode when user logs in or role changes
   useEffect(() => {
@@ -1486,11 +1505,31 @@ function AppContent() {
           />
         ) : (
           <div>
-            <div className="bg-purple-950/90 border-b border-purple-800/60 p-3 px-6 flex flex-wrap items-center justify-between gap-2 text-xs text-purple-200 shadow-md">
-              <div className="flex items-center gap-2">
-                <Gamepad2 className="w-4 h-4 text-purple-400" />
-                <span className="font-bold text-white uppercase tracking-wider">Student Emulation Mode</span>
-                <span className="hidden sm:inline">&mdash; Previewing choice board game experience as a student</span>
+            <div className="bg-purple-950/90 border-b border-purple-800/60 p-3 px-6 flex flex-wrap items-center justify-between gap-3 text-xs text-purple-200 shadow-md">
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Gamepad2 className="w-4 h-4 text-purple-400" />
+                  <span className="font-bold text-white uppercase tracking-wider">Student Emulation Mode</span>
+                </div>
+                {emulationClasses.length > 1 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-purple-300 text-xs">Previewing Class:</span>
+                    <select
+                      value={emulatedClassId || ''}
+                      onChange={e => setEmulatedClassId(e.target.value)}
+                      className="px-2 py-1 bg-slate-900 border border-purple-700/60 rounded text-xs text-white outline-none focus:border-yellow-400"
+                    >
+                      {emulationClasses.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {emulationClasses.length === 1 && (
+                  <span className="text-purple-300 text-xs">
+                    Class: <strong className="text-white">{emulationClasses[0].name}</strong>
+                  </span>
+                )}
               </div>
               <button
                 onClick={() => setActiveViewMode(user.role === 'admin' ? 'admin' : 'teacher')}
@@ -1499,7 +1538,7 @@ function AppContent() {
                 Exit Emulation
               </button>
             </div>
-            <GameContent />
+            <GameContent emulatedClassId={emulatedClassId} />
           </div>
         )}
       </div>

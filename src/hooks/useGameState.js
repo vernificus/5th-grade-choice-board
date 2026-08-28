@@ -57,8 +57,9 @@ function shouldAutoReset(lastResetIso) {
   return lastReset < monday7am;
 }
 
-export function useGameState() {
+export function useGameState(overrideClassId) {
   const { user } = useAuth();
+  const effectiveClassId = user?.classId || overrideClassId;
 
   const [gameState, setGameState] = useState(getDefaultState());
   const [submissions, setSubmissions] = useState([]);
@@ -76,14 +77,22 @@ export function useGameState() {
     if (user && user.role === 'student') {
       loadUserData();
       loadClassActivities();
+    } else if (user && (user.role === 'teacher' || user.role === 'admin')) {
+      setGameState(prev => ({
+        ...prev,
+        playerName: user.name ? `${user.name} (Student Demo)` : 'Student Demo'
+      }));
+      if (effectiveClassId) {
+        loadClassActivities();
+      }
     }
-  }, [user]);
+  }, [user, effectiveClassId]);
 
   const loadClassActivities = async () => {
-    if (!user.classId) return;
+    if (!effectiveClassId) return;
     try {
       // Fetch the class document once to get both activities and category names
-      const classDoc = await backend.getClass(user.classId);
+      const classDoc = await backend.getClass(effectiveClassId);
       if (!classDoc) return;
 
       // Start with custom activities if saved, otherwise keep defaults
