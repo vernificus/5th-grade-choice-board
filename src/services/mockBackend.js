@@ -293,7 +293,7 @@ export const mockBackend = {
   },
 
   // ================= ACTIVITY LIBRARY =================
-  async publishActivity(activity) {
+  async publishActivity(activity, organizationId = null, organizationName = '') {
     await wait(DELAY);
     const db = getDB();
     if (!db.activity_library) {
@@ -303,12 +303,15 @@ export const mockBackend = {
       title: activity.title || 'Untitled Activity',
       desc: activity.desc || '',
       type: activity.type || 'Low Tech',
+      categoryTag: activity.categoryTag || activity.pathTitle || '',
       xp: Number(activity.xp) || 100,
       steps: Array.isArray(activity.steps) ? activity.steps : [{ text: '' }],
       proTip: activity.proTip || '',
       id: 'lib_' + Date.now(),
       authorId: 'teacher_mock',
       authorName: 'Demo Teacher',
+      organizationId: organizationId || null,
+      organizationName: organizationName || '',
       publishedAt: new Date().toISOString()
     };
     db.activity_library.push(newActivity);
@@ -316,9 +319,23 @@ export const mockBackend = {
     return newActivity;
   },
 
-  async getPublicActivities() {
+  async getPublicActivities(organizationId = null) {
     await wait(DELAY);
     const db = getDB();
-    return db.activity_library || [];
+    const all = db.activity_library || [];
+    if (organizationId) {
+      return all.filter(a => a.organizationId === organizationId);
+    }
+    return all;
+  },
+
+  async deleteLibraryActivity(activityId) {
+    await wait(DELAY);
+    const db = getDB();
+    if (db.activity_library) {
+      db.activity_library = db.activity_library.filter(a => a.id !== activityId);
+      saveDB(db);
+    }
+    return { success: true };
   }
 };

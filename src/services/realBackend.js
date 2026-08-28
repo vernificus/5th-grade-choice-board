@@ -398,17 +398,33 @@ export const realBackend = {
   },
 
   // ================= ACTIVITY LIBRARY =================
-  async publishActivity(activity) {
+  async publishActivity(activity, organizationId = null, organizationName = '') {
     try {
       // Get current user to add as author
       const user = auth.currentUser;
       if (!user) throw new Error("Must be logged in to publish activities to the library");
+
+      // Resolve organizationId and organizationName
+      let orgId = organizationId;
+      let orgName = organizationName;
+      if (!orgId) {
+        try {
+          const teacherDoc = await getDoc(doc(db, "teachers", user.uid));
+          if (teacherDoc.exists()) {
+            orgId = teacherDoc.data().organizationId || null;
+            orgName = teacherDoc.data().organizationName || '';
+          }
+        } catch (e) {
+          // ignore lookup error
+        }
+      }
 
       // Sanitize fields to ensure Firestore compatibility (no undefined properties)
       const newActivity = {
         title: activity.title || "Untitled Activity",
         desc: activity.desc || "",
         type: activity.type || "Low Tech",
+        categoryTag: activity.categoryTag || activity.pathTitle || "",
         xp: Number(activity.xp) || 100,
         steps: Array.isArray(activity.steps)
           ? activity.steps.map(s => {
@@ -422,6 +438,8 @@ export const realBackend = {
         proTip: activity.proTip || "",
         authorId: user.uid,
         authorName: user.displayName || user.email?.split('@')[0] || "Teacher",
+        organizationId: orgId || null,
+        organizationName: orgName || "",
         publishedAt: serverTimestamp()
       };
       const docRef = await addDoc(collection(db, "activity_library"), newActivity);
@@ -432,9 +450,15 @@ export const realBackend = {
     }
   },
 
-  async getPublicActivities() {
+  async getPublicActivities(organizationId = null) {
     try {
-      const q = query(collection(db, "activity_library"));
+      let q;
+      if (organizationId) {
+        q = query(collection(db, "activity_library"), where("organizationId", "==", organizationId));
+      } else {
+        q = query(collection(db, "activity_library"));
+      }
+
       const querySnapshot = await getDocs(q);
       const activities = [];
       querySnapshot.forEach((docSnap) => {
@@ -444,11 +468,14 @@ export const realBackend = {
           title: data.title || "Untitled Activity",
           desc: data.desc || "",
           type: data.type || "Low Tech",
+          categoryTag: data.categoryTag || "",
           xp: typeof data.xp === 'number' ? data.xp : 100,
           steps: Array.isArray(data.steps) ? data.steps : [{ text: '' }],
           proTip: data.proTip || "",
           authorName: data.authorName || "Teacher",
           authorId: data.authorId || "",
+          organizationId: data.organizationId || null,
+          organizationName: data.organizationName || "",
           publishedAt: data.publishedAt || null
         });
       });
@@ -456,6 +483,16 @@ export const realBackend = {
     } catch (error) {
       console.error("Error fetching library activities:", error);
       return [];
+    }
+  },
+
+  async deleteLibraryActivity(activityId) {
+    try {
+      await deleteDoc(doc(db, "activity_library", activityId));
+      return { success: true };
+    } catch (error) {
+      console.error("Error deleting library activity:", error);
+      throw error;
     }
   },
 

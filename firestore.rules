@@ -95,8 +95,8 @@ service cloud.firestore {
       // Authenticated teachers can create new activities
       allow create: if isAuthenticated();
 
-      // Only the author can update or delete their activity
-      allow update, delete: if isAuthenticated() && resource.data.authorId == request.auth.uid;
+      // The author or system admins can update or delete library activities
+      allow update, delete: if isAuthenticated() && (resource.data.authorId == request.auth.uid || isAdmin());
     }
 
     // ORGANIZATIONS

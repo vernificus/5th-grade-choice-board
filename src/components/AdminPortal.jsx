@@ -4,7 +4,7 @@ import { realBackend as backend } from '../services/realBackend';
 import {
   Building2, Users, BookOpen, Plus, Search, LogOut, CheckCircle2,
   XCircle, Edit, Trash2, ShieldCheck, ChevronRight, Share2, Filter,
-  CheckSquare, Square, RefreshCw, AlertCircle, Layers, Sparkles, Shield
+  CheckSquare, Square, RefreshCw, AlertCircle, Layers, Sparkles, Shield, Copy
 } from 'lucide-react';
 import ActivityEditor from './ActivityEditor';
 import LegalModal from './LegalModal';
@@ -242,6 +242,18 @@ export default function AdminPortal() {
     setTemplateCategoryNames(tmp.categoryNames || {});
     setTemplateCategorySubtitles(tmp.categorySubtitles || {});
     setShowTemplateEditor(true);
+  };
+
+  const handleDuplicateTemplate = (tmp) => {
+    setEditingTemplate(null); // Creating a new template based on this one
+    setTemplateTitle(`${tmp.title || 'Choice Board Template'} (Copy)`);
+    setTemplateDesc(tmp.description || '');
+    // Deep clone activities to prevent accidental reference mutation
+    setTemplatePaths(tmp.activities && tmp.activities.length > 0 ? JSON.parse(JSON.stringify(tmp.activities)) : DEFAULT_PATHS);
+    setTemplateCategoryNames(tmp.categoryNames ? { ...tmp.categoryNames } : {});
+    setTemplateCategorySubtitles(tmp.categorySubtitles ? { ...tmp.categorySubtitles } : {});
+    setShowTemplateEditor(true);
+    notifySuccess(`Created a copy draft of "${tmp.title}". Make any changes and click "Save Template" to finalize.`);
   };
 
   const handleSaveTemplate = async () => {
@@ -751,17 +763,24 @@ export default function AdminPortal() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between gap-2 mt-6 pt-4 border-t border-slate-800">
-                      <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-between gap-2 mt-6 pt-4 border-t border-slate-800 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <button
                           onClick={() => handleOpenEditTemplate(tmp)}
-                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5"
+                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
                         >
-                          <Edit className="w-3.5 h-3.5" /> Edit Template
+                          <Edit className="w-3.5 h-3.5" /> Edit
+                        </button>
+                        <button
+                          onClick={() => handleDuplicateTemplate(tmp)}
+                          className="px-3 py-1.5 bg-slate-800 hover:bg-blue-950/60 hover:text-blue-300 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-slate-700/60 transition-colors"
+                          title="Copy this template to create a new one"
+                        >
+                          <Copy className="w-3.5 h-3.5 text-blue-400" /> Copy Template
                         </button>
                         <button
                           onClick={() => handleDeleteTemplate(tmp.id, tmp.title)}
-                          className="px-3 py-1.5 bg-red-950/40 hover:bg-red-900/60 text-red-300 rounded-lg text-xs font-semibold flex items-center gap-1.5"
+                          className="px-3 py-1.5 bg-red-950/40 hover:bg-red-900/60 text-red-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
                         >
                           <Trash2 className="w-3.5 h-3.5" /> Delete
                         </button>

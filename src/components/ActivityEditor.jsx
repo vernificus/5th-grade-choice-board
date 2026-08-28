@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { realBackend as backend } from '../services/realBackend';
+import { useAuth } from '../context/AuthContext';
 import { LEARNING_PATHS as DEFAULT_PATHS, PATH_COLORS } from '../data/gameData';
 import {
   Save, Plus, Trash2, BookOpen, Search, X, ChevronDown, ChevronUp,
   GripVertical, Link2, ExternalLink, Eye, EyeOff, Bold, Italic, Type,
-  ArrowUp, ArrowDown, Copy, ChevronRight, FileText, Loader2, Check, Filter, Sparkles
+  ArrowUp, ArrowDown, Copy, ChevronRight, FileText, Loader2, Check, Filter, Sparkles,
+  Building2, ArrowUpDown, SlidersHorizontal, User, Tag
 } from 'lucide-react';
 import DocumentImporterModal from './DocumentImporterModal';
 
@@ -264,16 +266,33 @@ function ActivityPreview({ activity }) {
 }
 
 export default function ActivityEditor({ classId, paths: passedPaths, onChange, categoryNames, categorySubtitles, onSave, onCancel }) {
+  const { user } = useAuth() || {};
   const [learningPaths, setLearningPaths] = useState(passedPaths || DEFAULT_PATHS);
   const [libraryActivities, setLibraryActivities] = useState([]);
   const [showLibrary, setShowLibrary] = useState(false);
   const [libraryLoading, setLibraryLoading] = useState(false);
   const [libraryError, setLibraryError] = useState(null);
+  
+  // Organization scoping & filter states
+  const [activeOrgId, setActiveOrgId] = useState(user?.organizationId || null);
+  const [activeOrgName, setActiveOrgName] = useState(user?.organizationName || '');
+  const [organizationsList, setOrganizationsList] = useState([]);
   const [selectedTypeFilter, setSelectedTypeFilter] = useState('All');
+  const [selectedAuthorFilter, setSelectedAuthorFilter] = useState('All');
+  const [selectedSortOption, setSelectedSortOption] = useState('newest');
+  
   const [importedToast, setImportedToast] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [showDocImporter, setShowDocImporter] = useState(false);
+
+  // Sync activeOrgId with user if user changes
+  useEffect(() => {
+    if (user?.organizationId) {
+      setActiveOrgId(user.organizationId);
+      setActiveOrgName(user.organizationName || '');
+    }
+  }, [user]);
 
   // Which activity is currently being edited (pathId + activityId)
   const [editingPathId, setEditingPathId] = useState(null);
@@ -387,18 +406,44 @@ export default function ActivityEditor({ classId, paths: passedPaths, onChange, 
     }
   }, [classId, passedPaths, categoryNames, categorySubtitles]);
 
-  const loadLibrary = async () => {
+  const loadLibrary = async (orgIdOverride) => {
     setLibraryLoading(true);
     setLibraryError(null);
     setShowLibrary(true);
+    const orgToFetch = orgIdOverride !== undefined ? orgIdOverride : (activeOrgId || user?.organizationId || null);
     try {
-      const activities = await backend.getPublicActivities();
+      const [activities, orgs] = await Promise.all([
+        backend.getPublicActivities(orgToFetch),
+        user?.role === 'admin' ? backend.getOrganizations() : Promise.resolve([])
+      ]);
       setLibraryActivities(activities || []);
+      if (orgs && orgs.length > 0) {
+        setOrganizationsList(orgs);
+      }
     } catch (err) {
       console.error("Error loading library activities:", err);
       setLibraryError(err.message || "Failed to load library activities");
     } finally {
       setLibraryLoading(false);
+    }
+  };
+
+  const handleOrgChange = (newOrgId) => {
+    setActiveOrgId(newOrgId || null);
+    const matched = organizationsList.find(o => o.id === newOrgId);
+    setActiveOrgName(matched ? matched.name : (newOrgId ? '' : 'All Organizations'));
+    loadLibrary(newOrgId || null);
+  };
+
+  const handleDeleteFromLibrary = async (activityId, activityTitle) => {
+    if (!window.confirm(`Remove "${activityTitle}" from the organization library?`)) return;
+    try {
+      await backend.deleteLibraryActivity(activityId);
+      setLibraryActivities(prev => prev.filter(a => a.id !== activityId));
+      setImportedToast(`Removed "${activityTitle}" from library.`);
+      setTimeout(() => setImportedToast(null), 3000);
+    } catch (err) {
+      alert('Error removing activity: ' + err.message);
     }
   };
 
@@ -501,10 +546,15 @@ export default function ActivityEditor({ classId, paths: passedPaths, onChange, 
   };
 
   const handlePublish = async (activity) => {
-    if (!window.confirm(`Publish "${activity.title}" to the public library?`)) return;
+    const orgDisplay = activeOrgName || user?.organizationName || 'your organization';
+    if (!window.confirm(`Publish "${activity.title}" to the ${orgDisplay} library?`)) return;
     try {
-      await backend.publishActivity(activity);
-      alert('Activity published!');
+      const pathObj = learningPaths.find(p => p.id === editingPathId);
+      await backend.publishActivity({
+        ...activity,
+        categoryTag: pathObj?.title || ''
+      }, activeOrgId || user?.organizationId, activeOrgName || user?.organizationName);
+      alert(`"${activity.title}" published to ${orgDisplay} library!`);
     } catch (error) {
       alert('Error publishing: ' + error.message);
     }
@@ -559,15 +609,59 @@ export default function ActivityEditor({ classId, paths: passedPaths, onChange, 
 
   const activityTypes = ['All', 'Low Tech', 'High Tech', 'Collaboration', 'Reflection', 'Creation'];
 
-  const filteredLibraryActivities = (libraryActivities || []).filter(activity => {
-    const q = searchQuery.toLowerCase().trim();
-    const titleMatch = (activity.title || '').toLowerCase().includes(q);
-    const descMatch = (activity.desc || '').toLowerCase().includes(q);
-    const authorMatch = (activity.authorName || '').toLowerCase().includes(q);
-    const matchesSearch = !q || titleMatch || descMatch || authorMatch;
-    const matchesType = selectedTypeFilter === 'All' || activity.type === selectedTypeFilter;
-    return matchesSearch && matchesType;
-  });
+  const uniqueAuthors = Array.from(
+    new Set((libraryActivities || []).map(a => a.authorName).filter(Boolean))
+  );
+
+  const filteredLibraryActivities = (libraryActivities || [])
+    .filter(activity => {
+      const q = searchQuery.toLowerCase().trim();
+      const titleMatch = (activity.title || '').toLowerCase().includes(q);
+      const descMatch = (activity.desc || '').toLowerCase().includes(q);
+      const authorMatch = (activity.authorName || '').toLowerCase().includes(q);
+      const tagMatch = (activity.categoryTag || '').toLowerCase().includes(q);
+      const matchesSearch = !q || titleMatch || descMatch || authorMatch || tagMatch;
+      
+      const matchesType = selectedTypeFilter === 'All' || activity.type === selectedTypeFilter;
+      
+      const matchesAuthor = selectedAuthorFilter === 'All' ||
+        (selectedAuthorFilter === 'mine'
+          ? (activity.authorId === user?.id || activity.authorName === (user?.name || user?.displayName))
+          : activity.authorName === selectedAuthorFilter);
+      
+      return matchesSearch && matchesType && matchesAuthor;
+    })
+    .sort((a, b) => {
+      if (selectedSortOption === 'newest') {
+        const dateA = a.publishedAt?.toMillis ? a.publishedAt.toMillis() : (a.publishedAt ? new Date(a.publishedAt).getTime() : 0);
+        const dateB = b.publishedAt?.toMillis ? b.publishedAt.toMillis() : (b.publishedAt ? new Date(b.publishedAt).getTime() : 0);
+        return dateB - dateA;
+      }
+      if (selectedSortOption === 'oldest') {
+        const dateA = a.publishedAt?.toMillis ? a.publishedAt.toMillis() : (a.publishedAt ? new Date(a.publishedAt).getTime() : 0);
+        const dateB = b.publishedAt?.toMillis ? b.publishedAt.toMillis() : (b.publishedAt ? new Date(b.publishedAt).getTime() : 0);
+        return dateA - dateB;
+      }
+      if (selectedSortOption === 'alpha-asc') {
+        return (a.title || '').localeCompare(b.title || '');
+      }
+      if (selectedSortOption === 'alpha-desc') {
+        return (b.title || '').localeCompare(a.title || '');
+      }
+      if (selectedSortOption === 'xp-high') {
+        return (b.xp || 0) - (a.xp || 0);
+      }
+      if (selectedSortOption === 'xp-low') {
+        return (a.xp || 0) - (b.xp || 0);
+      }
+      if (selectedSortOption === 'steps-most') {
+        return (b.steps?.length || 0) - (a.steps?.length || 0);
+      }
+      if (selectedSortOption === 'steps-least') {
+        return (a.steps?.length || 0) - (b.steps?.length || 0);
+      }
+      return 0;
+    });
 
   const handleImportDocActivities = (importedActivities) => {
     if (!importedActivities || importedActivities.length === 0) return;
@@ -644,32 +738,61 @@ export default function ActivityEditor({ classId, paths: passedPaths, onChange, 
           }}
           onKeyDown={(e) => e.key === 'Escape' && setShowLibrary(false)}
         >
-          <div className="bg-slate-800 border-2 border-blue-500/80 rounded-2xl w-full max-w-5xl p-6 h-[85vh] flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-slate-800 border-2 border-blue-500/80 rounded-2xl w-full max-w-5xl p-6 h-[88vh] flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className="flex justify-between items-center pb-4 border-b border-slate-700">
+            <div className="flex flex-wrap justify-between items-center pb-4 border-b border-slate-700 gap-3">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-400">
                   <BookOpen className="w-5 h-5" aria-hidden="true" />
                 </div>
                 <div>
-                  <h3 id="library-dialog-title" className="text-xl font-black text-white flex items-center gap-2">
+                  <h3 id="library-dialog-title" className="text-xl font-black text-white flex items-center gap-2 flex-wrap">
                     Activity Library
                     <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                      {libraryActivities.length} {libraryActivities.length === 1 ? 'activity' : 'activities'}
+                      {filteredLibraryActivities.length} of {libraryActivities.length} {libraryActivities.length === 1 ? 'activity' : 'activities'}
                     </span>
+                    {(activeOrgName || user?.organizationName) && (
+                      <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-purple-950/80 text-purple-300 border border-purple-800/60 flex items-center gap-1">
+                        <Building2 className="w-3.5 h-3.5 text-purple-400" />
+                        {activeOrgName || user?.organizationName}
+                      </span>
+                    )}
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Browse and import ready-to-use activities shared by educators into your learning paths.
+                    Browse, organize, and import shared activities for your school into your choice boards.
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => setShowLibrary(false)}
-                className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-xl transition-colors"
-                aria-label="Close activity library"
-              >
-                <X className="w-5 h-5" aria-hidden="true" />
-              </button>
+
+              <div className="flex items-center gap-2">
+                {/* Admin Organization Switcher */}
+                {user?.role === 'admin' && organizationsList.length > 0 && (
+                  <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-700 px-2.5 py-1 rounded-xl text-xs">
+                    <Building2 className="w-3.5 h-3.5 text-yellow-400" />
+                    <span className="text-slate-400 font-semibold">Org:</span>
+                    <select
+                      value={activeOrgId || ''}
+                      onChange={(e) => handleOrgChange(e.target.value)}
+                      className="bg-transparent text-white font-bold outline-none cursor-pointer text-xs"
+                    >
+                      <option value="" className="bg-slate-900">All Organizations</option>
+                      {organizationsList.map(org => (
+                        <option key={org.id} value={org.id} className="bg-slate-900">
+                          {org.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => setShowLibrary(false)}
+                  className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-xl transition-colors"
+                  aria-label="Close activity library"
+                >
+                  <X className="w-5 h-5" aria-hidden="true" />
+                </button>
+              </div>
             </div>
 
             {/* Imported Toast Feedback */}
@@ -680,30 +803,74 @@ export default function ActivityEditor({ classId, paths: passedPaths, onChange, 
               </div>
             )}
 
-            {/* Search & Filter Bar */}
-            <div className="py-4 space-y-3">
-              <div className="flex flex-col sm:flex-row gap-3">
+            {/* Organization & Filter Controls Bar */}
+            <div className="py-3 space-y-3 border-b border-slate-700/60">
+              <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center">
+                {/* Search Bar */}
                 <div className="flex-1 relative">
                   <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" aria-hidden="true" />
                   <label htmlFor="library-search" className="sr-only">Search activities</label>
                   <input
                     id="library-search"
                     type="search"
-                    placeholder="Search by title, description, or teacher..."
+                    placeholder="Search by title, description, teacher, or category..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-900/80 rounded-xl text-white text-sm border border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-500"
+                    className="w-full pl-10 pr-8 py-2 bg-slate-900/80 rounded-xl text-white text-xs border border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-500"
                   />
                   {searchQuery && (
                     <button
                       onClick={() => setSearchQuery('')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
                       aria-label="Clear search"
                     >
-                      <X className="w-4 h-4" />
+                      <X className="w-3.5 h-3.5" />
                     </button>
                   )}
                 </div>
+
+                {/* Sort Option Dropdown */}
+                <div className="flex items-center gap-1.5 bg-slate-900/80 border border-slate-700 px-3 py-1.5 rounded-xl text-xs">
+                  <ArrowUpDown className="w-3.5 h-3.5 text-blue-400" />
+                  <label htmlFor="sort-library" className="text-slate-400 font-semibold whitespace-nowrap">Sort:</label>
+                  <select
+                    id="sort-library"
+                    value={selectedSortOption}
+                    onChange={(e) => setSelectedSortOption(e.target.value)}
+                    className="bg-transparent text-white font-bold outline-none cursor-pointer text-xs"
+                  >
+                    <option value="newest" className="bg-slate-900">Newest Added</option>
+                    <option value="oldest" className="bg-slate-900">Oldest Added</option>
+                    <option value="alpha-asc" className="bg-slate-900">Title (A → Z)</option>
+                    <option value="alpha-desc" className="bg-slate-900">Title (Z → A)</option>
+                    <option value="xp-high" className="bg-slate-900">XP (Highest First)</option>
+                    <option value="xp-low" className="bg-slate-900">XP (Lowest First)</option>
+                    <option value="steps-most" className="bg-slate-900">Most Steps</option>
+                    <option value="steps-least" className="bg-slate-900">Fewest Steps</option>
+                  </select>
+                </div>
+
+                {/* Author Filter Dropdown */}
+                {uniqueAuthors.length > 0 && (
+                  <div className="flex items-center gap-1.5 bg-slate-900/80 border border-slate-700 px-3 py-1.5 rounded-xl text-xs">
+                    <User className="w-3.5 h-3.5 text-emerald-400" />
+                    <label htmlFor="author-library" className="text-slate-400 font-semibold whitespace-nowrap">Teacher:</label>
+                    <select
+                      id="author-library"
+                      value={selectedAuthorFilter}
+                      onChange={(e) => setSelectedAuthorFilter(e.target.value)}
+                      className="bg-transparent text-white font-bold outline-none cursor-pointer text-xs max-w-[140px] truncate"
+                    >
+                      <option value="All" className="bg-slate-900">All Teachers</option>
+                      <option value="mine" className="bg-slate-900">My Published Only</option>
+                      {uniqueAuthors.map(author => (
+                        <option key={author} value={author} className="bg-slate-900">
+                          {author}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
 
               {/* Type Filter Pills */}
@@ -729,11 +896,11 @@ export default function ActivityEditor({ classId, paths: passedPaths, onChange, 
             </div>
 
             {/* Activities Content Area */}
-            <div className="flex-1 overflow-y-auto pr-1">
+            <div className="flex-1 overflow-y-auto pr-1 pt-3">
               {libraryLoading ? (
                 <div className="h-full flex flex-col items-center justify-center py-12 text-center">
                   <Loader2 className="w-8 h-8 text-blue-400 animate-spin mb-3" />
-                  <p className="text-sm font-semibold text-slate-300">Loading library activities...</p>
+                  <p className="text-sm font-semibold text-slate-300">Loading organization library activities...</p>
                 </div>
               ) : libraryError ? (
                 <div className="h-full flex flex-col items-center justify-center py-12 text-center p-6 bg-slate-900/50 rounded-xl border border-red-500/30">
@@ -741,7 +908,7 @@ export default function ActivityEditor({ classId, paths: passedPaths, onChange, 
                   <p className="text-xs text-slate-400 max-w-md mb-4">{libraryError}</p>
                   <button
                     type="button"
-                    onClick={loadLibrary}
+                    onClick={() => loadLibrary()}
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-colors"
                   >
                     Try Again
@@ -753,80 +920,104 @@ export default function ActivityEditor({ classId, paths: passedPaths, onChange, 
                     <BookOpen className="w-7 h-7" />
                   </div>
                   <h4 className="text-base font-bold text-slate-200 mb-1">
-                    {libraryActivities.length === 0 ? "No activities published yet" : "No matching activities"}
+                    {libraryActivities.length === 0 ? "No activities published yet for this organization" : "No matching activities"}
                   </h4>
                   <p className="text-xs text-slate-400 max-w-sm mb-4">
                     {libraryActivities.length === 0
-                      ? "Publish your own choice board activities to the public library using the 'Publish' button on any activity card!"
-                      : "Try clearing your search query or selecting a different activity type filter."}
+                      ? "Publish your own choice board activities to your school library using the 'Publish' button on any activity card!"
+                      : "Try clearing your search query, changing the sort order, or selecting a different filter."}
                   </p>
-                  {(searchQuery || selectedTypeFilter !== 'All') && (
+                  {(searchQuery || selectedTypeFilter !== 'All' || selectedAuthorFilter !== 'All') && (
                     <button
                       type="button"
-                      onClick={() => { setSearchQuery(''); setSelectedTypeFilter('All'); }}
+                      onClick={() => { setSearchQuery(''); setSelectedTypeFilter('All'); setSelectedAuthorFilter('All'); }}
                       className="px-3.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-xs font-bold transition-colors"
                     >
-                      Reset Filters
+                      Reset All Filters
                     </button>
                   )}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-4">
-                  {filteredLibraryActivities.map(activity => (
-                    <div
-                      key={activity.id}
-                      className="bg-slate-900/70 hover:bg-slate-900/90 p-5 rounded-2xl border border-slate-700/80 hover:border-slate-600 transition-all flex flex-col justify-between shadow-lg"
-                    >
-                      <div className="space-y-3">
-                        {/* Badges & XP Header */}
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <span className={`text-[11px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${getTypeBadgeClass(activity.type)}`}>
-                            {activity.type || 'Low Tech'}
-                          </span>
-                          <span className="text-xs font-black text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-full">
-                            +{activity.xp || 100} XP
-                          </span>
+                  {filteredLibraryActivities.map(activity => {
+                    const isAuthorOrAdmin = activity.authorId === user?.id || user?.role === 'admin';
+                    return (
+                      <div
+                        key={activity.id}
+                        className="bg-slate-900/70 hover:bg-slate-900/90 p-5 rounded-2xl border border-slate-700/80 hover:border-slate-600 transition-all flex flex-col justify-between shadow-lg"
+                      >
+                        <div className="space-y-3">
+                          {/* Badges, XP & Delete Header */}
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`text-[11px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${getTypeBadgeClass(activity.type)}`}>
+                                {activity.type || 'Low Tech'}
+                              </span>
+                              {activity.categoryTag && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 flex items-center gap-1">
+                                  <Tag className="w-3 h-3 text-slate-400" />
+                                  {activity.categoryTag}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-black text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-full">
+                                +{activity.xp || 100} XP
+                              </span>
+                              {isAuthorOrAdmin && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteFromLibrary(activity.id, activity.title)}
+                                  className="p-1 text-slate-500 hover:text-red-400 hover:bg-red-950/40 rounded-lg transition-colors"
+                                  title="Delete from organization library"
+                                  aria-label={`Delete ${activity.title} from library`}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Title & Desc */}
+                          <div>
+                            <h4 className="text-base font-black text-white">{activity.title}</h4>
+                            {activity.desc && (
+                              <p className="text-xs text-slate-300 mt-1 line-clamp-3 leading-relaxed">
+                                {activity.desc}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Steps, ProTip and Author Attribution */}
+                          <div className="flex items-center gap-3 text-[11px] text-slate-400 flex-wrap">
+                            <span>📋 {activity.steps?.length || 1} {activity.steps?.length === 1 ? 'step' : 'steps'}</span>
+                            {activity.proTip && <span>💡 Pro Tip included</span>}
+                            {activity.authorName && (
+                              <span className="truncate">👤 {activity.authorName}</span>
+                            )}
+                          </div>
                         </div>
 
-                        {/* Title & Desc */}
-                        <div>
-                          <h4 className="text-base font-black text-white">{activity.title}</h4>
-                          {activity.desc && (
-                            <p className="text-xs text-slate-300 mt-1 line-clamp-3 leading-relaxed">
-                              {activity.desc}
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Steps and ProTip preview */}
-                        <div className="flex items-center gap-3 text-[11px] text-slate-400 flex-wrap">
-                          <span>📋 {activity.steps?.length || 1} {activity.steps?.length === 1 ? 'step' : 'steps'}</span>
-                          {activity.proTip && <span>💡 Pro Tip included</span>}
-                          {activity.authorName && (
-                            <span className="truncate">👤 {activity.authorName}</span>
-                          )}
+                        {/* Import Action Row */}
+                        <div className="mt-4 pt-3 border-t border-slate-800">
+                          <span className="text-[11px] font-bold text-slate-400 block mb-2">Import to Path:</span>
+                          <div className="flex gap-1.5 flex-wrap">
+                            {learningPaths.map(path => (
+                              <button
+                                key={path.id}
+                                type="button"
+                                onClick={() => handleImport(activity, path.id)}
+                                className="text-xs font-bold bg-blue-600/90 hover:bg-blue-500 text-white px-2.5 py-1.5 rounded-lg transition-all shadow hover:shadow-blue-500/20 active:scale-95 truncate max-w-[180px]"
+                                title={`Import to ${path.title}`}
+                              >
+                                + {path.title}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       </div>
-
-                      {/* Import Action Row */}
-                      <div className="mt-4 pt-3 border-t border-slate-800">
-                        <span className="text-[11px] font-bold text-slate-400 block mb-2">Import to Path:</span>
-                        <div className="flex gap-1.5 flex-wrap">
-                          {learningPaths.map(path => (
-                            <button
-                              key={path.id}
-                              type="button"
-                              onClick={() => handleImport(activity, path.id)}
-                              className="text-xs font-bold bg-blue-600/90 hover:bg-blue-500 text-white px-2.5 py-1.5 rounded-lg transition-all shadow hover:shadow-blue-500/20 active:scale-95 truncate max-w-[180px]"
-                              title={`Import to ${path.title}`}
-                            >
-                              + {path.title}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
