@@ -641,6 +641,8 @@ export default function TeacherPortal() {
                     )}
                     <ActivityEditor
                       classId={selectedClass.id}
+                      organizationId={selectedClass?.organizationId || user?.organizationId || null}
+                      organizationName={user?.organizationName || ''}
                       onSave={() => alert('Activities updated!')}
                     />
                   </div>

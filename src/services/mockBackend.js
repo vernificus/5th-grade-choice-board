@@ -301,6 +301,10 @@ export const mockBackend = {
     if (!db.activity_library) {
       db.activity_library = [];
     }
+    const currentTeacher = (db.teachers || []).find(t => t.id === 'teacher_mock') || {};
+    const orgId = currentTeacher.organizationId || organizationId || null;
+    const orgName = currentTeacher.organizationName || organizationName || '';
+
     const newActivity = {
       title: activity.title || 'Untitled Activity',
       desc: activity.desc || '',
@@ -310,10 +314,10 @@ export const mockBackend = {
       steps: Array.isArray(activity.steps) ? activity.steps : [{ text: '' }],
       proTip: activity.proTip || '',
       id: 'lib_' + Date.now(),
-      authorId: 'teacher_mock',
-      authorName: 'Demo Teacher',
-      organizationId: organizationId || null,
-      organizationName: organizationName || '',
+      authorId: currentTeacher.id || 'teacher_mock',
+      authorName: currentTeacher.name || 'Demo Teacher',
+      organizationId: orgId,
+      organizationName: orgName,
       publishedAt: new Date().toISOString()
     };
     db.activity_library.push(newActivity);
@@ -325,10 +329,19 @@ export const mockBackend = {
     await wait(DELAY);
     const db = getDB();
     const all = db.activity_library || [];
-    if (organizationId) {
-      return all.filter(a => a.organizationId === organizationId);
+    const validOrgId = (organizationId && typeof organizationId === 'string' && organizationId.trim() !== '')
+      ? organizationId.trim()
+      : null;
+    if (validOrgId) {
+      return all.filter(a => a.organizationId === validOrgId);
     }
-    return all;
+    return [];
+  },
+
+  async getTeacher(teacherId) {
+    await wait(DELAY);
+    const db = getDB();
+    return (db.teachers || []).find(t => t.id === teacherId) || null;
   },
 
   async deleteLibraryActivity(activityId) {

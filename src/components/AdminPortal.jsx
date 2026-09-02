@@ -73,11 +73,16 @@ export default function AdminPortal() {
         backend.getOrganizations(),
         backend.getAllTeachers()
       ]);
-      setOrganizations(orgsData);
+      const sortedOrgs = [...orgsData].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      setOrganizations(sortedOrgs);
       setTeachers(teachersData);
 
-      if (orgsData.length > 0 && !selectedOrgId) {
-        setSelectedOrgId(orgsData[0].id);
+      const savedOrgId = sessionStorage.getItem('lvlup_admin_selected_org');
+      const validSavedOrg = savedOrgId && sortedOrgs.some(o => o.id === savedOrgId);
+      if (validSavedOrg) {
+        setSelectedOrgId(savedOrgId);
+      } else if (sortedOrgs.length > 0 && !selectedOrgId) {
+        setSelectedOrgId(sortedOrgs[0].id);
       }
     } catch (err) {
       console.error(err);
@@ -88,6 +93,7 @@ export default function AdminPortal() {
 
   useEffect(() => {
     if (selectedOrgId) {
+      sessionStorage.setItem('lvlup_admin_selected_org', selectedOrgId);
       loadTemplatesForOrg(selectedOrgId);
       loadClassesForOrg(selectedOrgId);
     }
@@ -1122,6 +1128,9 @@ export default function AdminPortal() {
                   onChange={(updatedPaths) => setTemplatePaths(updatedPaths)}
                   categoryNames={templateCategoryNames}
                   categorySubtitles={templateCategorySubtitles}
+                  organizationId={selectedOrgId}
+                  organizationName={currentOrg?.name || ''}
+                  onSave={handleSaveTemplate}
                 />
               </div>
             </div>

@@ -376,8 +376,39 @@ export const realBackend = {
 
   // ================= ACTIVITIES =================
   async saveClassActivities(classId, activities) {
+    if (!classId || typeof classId !== 'string') {
+      throw new Error("A valid Class ID is required to save activities.");
+    }
     try {
-      await updateDoc(doc(db, "classes", classId), { activities });
+      const sanitizedActivities = (activities || []).map(path => ({
+        id: path.id || '',
+        title: path.title || '',
+        subtitle: path.subtitle || '',
+        icon: path.icon || 'BookOpen',
+        color: path.color || 'bg-blue-600',
+        options: (path.options || []).map(opt => {
+          const cleanOpt = {
+            id: opt.id || `opt-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            title: opt.title || 'Untitled Activity',
+            desc: opt.desc || '',
+            type: opt.type || 'Low Tech',
+            xp: typeof opt.xp === 'number' ? opt.xp : (parseInt(opt.xp) || 100),
+            steps: Array.isArray(opt.steps)
+              ? opt.steps.map(s => {
+                  if (typeof s === 'string') return { text: s };
+                  const cleanStep = { text: s?.text || '' };
+                  if (s?.link) cleanStep.link = s.link;
+                  if (s?.linkText) cleanStep.linkText = s.linkText;
+                  return cleanStep;
+                })
+              : [{ text: '' }],
+            proTip: opt.proTip || ''
+          };
+          if (opt.categoryTag) cleanOpt.categoryTag = opt.categoryTag;
+          return cleanOpt;
+        })
+      }));
+      await updateDoc(doc(db, "classes", classId), { activities: sanitizedActivities });
       return true;
     } catch (error) {
       console.error("Error saving activities:", error);
@@ -405,19 +436,46 @@ export const realBackend = {
       const user = auth.currentUser;
       if (!user) throw new Error("Must be logged in to publish activities to the library");
 
-      // Resolve organizationId and organizationName
-      let orgId = organizationId;
-      let orgName = organizationName;
-      if (!orgId) {
+      // Check the user list ('teachers' collection) for the user's assigned organization
+      let userOrgId = null;
+      let userOrgName = '';
+      let isUserAdmin = false;
+
+      try {
+        const teacherDoc = await getDoc(doc(db, "teachers", user.uid));
+        if (teacherDoc.exists()) {
+          const tData = teacherDoc.data();
+          userOrgId = tData.organizationId || null;
+          userOrgName = tData.organizationName || '';
+          isUserAdmin = tData.role === 'admin';
+        }
+      } catch (e) {
+        console.warn("Could not load user profile from teachers collection:", e);
+      }
+
+      // Default to the organization the user is assigned to in the user list!
+      let orgId = userOrgId;
+      let orgName = userOrgName;
+
+      // If user has no assigned organization (e.g. unassigned admin), fall back to passed org
+      if (!orgId && isUserAdmin && organizationId && typeof organizationId === 'string' && organizationId.trim() !== '') {
+        orgId = organizationId.trim();
+        orgName = organizationName || '';
+      }
+
+      if (orgId && !orgName) {
         try {
-          const teacherDoc = await getDoc(doc(db, "teachers", user.uid));
-          if (teacherDoc.exists()) {
-            orgId = teacherDoc.data().organizationId || null;
-            orgName = teacherDoc.data().organizationName || '';
+          const orgDoc = await getDoc(doc(db, "organizations", orgId));
+          if (orgDoc.exists()) {
+            orgName = orgDoc.data().name || '';
           }
         } catch (e) {
           // ignore lookup error
         }
+      }
+
+      if (!orgId) {
+        throw new Error("Cannot publish activity: Your account is not assigned to an organization in the user list.");
       }
 
       // Sanitize fields to ensure Firestore compatibility (no undefined properties)
@@ -439,8 +497,8 @@ export const realBackend = {
         proTip: activity.proTip || "",
         authorId: user.uid,
         authorName: user.displayName || user.email?.split('@')[0] || "Teacher",
-        organizationId: orgId || null,
-        organizationName: orgName || "",
+        organizationId: orgId,
+        organizationName: orgName,
         publishedAt: serverTimestamp()
       };
       const docRef = await addDoc(collection(db, "activity_library"), newActivity);
@@ -453,13 +511,43 @@ export const realBackend = {
 
   async getPublicActivities(organizationId = null) {
     try {
-      let q;
-      if (organizationId) {
-        q = query(collection(db, "activity_library"), where("organizationId", "==", organizationId));
-      } else {
-        q = query(collection(db, "activity_library"));
+      const user = auth.currentUser;
+      let userOrgId = null;
+      let isUserAdmin = false;
+
+      if (user) {
+        try {
+          const teacherDoc = await getDoc(doc(db, "teachers", user.uid));
+          if (teacherDoc.exists()) {
+            const tData = teacherDoc.data();
+            userOrgId = tData.organizationId || null;
+            isUserAdmin = tData.role === 'admin';
+          }
+        } catch (e) {
+          console.warn("Could not load user profile in getPublicActivities:", e);
+        }
+        if (user.email && user.email.toLowerCase() === 'matthew.harbert@lcps.org') {
+          isUserAdmin = true;
+        }
       }
 
+      // Target organization determination:
+      let targetOrgId = null;
+      if (organizationId && typeof organizationId === 'string' && organizationId.trim() !== '') {
+        targetOrgId = organizationId.trim();
+      } else if (!isUserAdmin) {
+        // Non-admin teachers can ONLY see activities for their assigned organization
+        targetOrgId = userOrgId;
+      } else {
+        targetOrgId = userOrgId;
+      }
+
+      // If no valid organization is resolved, return empty list (activities are strictly private to organizations)
+      if (!targetOrgId) {
+        return [];
+      }
+
+      const q = query(collection(db, "activity_library"), where("organizationId", "==", targetOrgId));
       const querySnapshot = await getDocs(q);
       const activities = [];
       querySnapshot.forEach((docSnap) => {
@@ -1248,7 +1336,9 @@ export const realBackend = {
     try {
       const q = query(collection(db, "organizations"));
       const snapshot = await getDocs(q);
-      return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      return list;
     } catch (error) {
       console.error("Error fetching organizations:", error);
       return [];
@@ -1300,6 +1390,19 @@ export const realBackend = {
   },
 
   // ================= ADMIN & TEACHER USER MANAGEMENT =================
+  async getTeacher(teacherId) {
+    try {
+      const docSnap = await getDoc(doc(db, "teachers", teacherId));
+      if (docSnap.exists()) {
+        return { id: docSnap.id, ...docSnap.data() };
+      }
+      return null;
+    } catch (error) {
+      console.error("Error fetching teacher:", error);
+      return null;
+    }
+  },
+
   async getAllTeachers() {
     try {
       const snapshot = await getDocs(collection(db, "teachers"));
@@ -1383,12 +1486,39 @@ export const realBackend = {
 
   // ================= ORGANIZATION CHOICE BOARD TEMPLATES =================
   async createOrgTemplate(orgId, templateData) {
+    if (!orgId) throw new Error("Organization ID is required.");
     try {
+      const sanitizedActivities = (templateData.activities || []).map(path => ({
+        id: path.id || '',
+        title: path.title || '',
+        subtitle: path.subtitle || '',
+        icon: path.icon || 'BookOpen',
+        color: path.color || 'bg-blue-600',
+        options: (path.options || []).map(opt => ({
+          id: opt.id || `opt-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          title: opt.title || 'Untitled Activity',
+          desc: opt.desc || '',
+          type: opt.type || 'Low Tech',
+          xp: typeof opt.xp === 'number' ? opt.xp : (parseInt(opt.xp) || 100),
+          steps: Array.isArray(opt.steps)
+            ? opt.steps.map(s => {
+                if (typeof s === 'string') return { text: s };
+                const cleanStep = { text: s?.text || '' };
+                if (s?.link) cleanStep.link = s.link;
+                if (s?.linkText) cleanStep.linkText = s.linkText;
+                return cleanStep;
+              })
+            : [{ text: '' }],
+          proTip: opt.proTip || '',
+          ...(opt.categoryTag ? { categoryTag: opt.categoryTag } : {})
+        }))
+      }));
+
       const newTemplate = {
         orgId,
         title: templateData.title || 'Untitled Choice Board Template',
         description: templateData.description || '',
-        activities: templateData.activities || [],
+        activities: sanitizedActivities,
         categoryNames: templateData.categoryNames || {},
         categorySubtitles: templateData.categorySubtitles || {},
         createdBy: templateData.createdBy || 'Admin',
@@ -1414,10 +1544,39 @@ export const realBackend = {
   },
 
   async updateOrgTemplate(templateId, updates) {
+    if (!templateId) throw new Error("Template ID is required.");
     try {
+      const cleanUpdates = { ...updates };
+      if (cleanUpdates.activities) {
+        cleanUpdates.activities = cleanUpdates.activities.map(path => ({
+          id: path.id || '',
+          title: path.title || '',
+          subtitle: path.subtitle || '',
+          icon: path.icon || 'BookOpen',
+          color: path.color || 'bg-blue-600',
+          options: (path.options || []).map(opt => ({
+            id: opt.id || `opt-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            title: opt.title || 'Untitled Activity',
+            desc: opt.desc || '',
+            type: opt.type || 'Low Tech',
+            xp: typeof opt.xp === 'number' ? opt.xp : (parseInt(opt.xp) || 100),
+            steps: Array.isArray(opt.steps)
+              ? opt.steps.map(s => {
+                  if (typeof s === 'string') return { text: s };
+                  const cleanStep = { text: s?.text || '' };
+                  if (s?.link) cleanStep.link = s.link;
+                  if (s?.linkText) cleanStep.linkText = s.linkText;
+                  return cleanStep;
+                })
+              : [{ text: '' }],
+            proTip: opt.proTip || '',
+            ...(opt.categoryTag ? { categoryTag: opt.categoryTag } : {})
+          }))
+        }));
+      }
       const docRef = doc(db, "orgTemplates", templateId);
-      await updateDoc(docRef, { ...updates, updatedAt: serverTimestamp() });
-      return { id: templateId, ...updates };
+      await updateDoc(docRef, { ...cleanUpdates, updatedAt: serverTimestamp() });
+      return { id: templateId, ...cleanUpdates };
     } catch (error) {
       throw new Error("Failed to update choice board template: " + error.message);
     }

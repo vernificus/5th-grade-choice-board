@@ -265,7 +265,17 @@ function ActivityPreview({ activity }) {
   );
 }
 
-export default function ActivityEditor({ classId, paths: passedPaths, onChange, categoryNames, categorySubtitles, onSave, onCancel }) {
+export default function ActivityEditor({
+  classId,
+  paths: passedPaths,
+  onChange,
+  categoryNames,
+  categorySubtitles,
+  organizationId: propOrgId,
+  organizationName: propOrgName,
+  onSave,
+  onCancel
+}) {
   const { user } = useAuth() || {};
   const [learningPaths, setLearningPaths] = useState(passedPaths || DEFAULT_PATHS);
   const [libraryActivities, setLibraryActivities] = useState([]);
@@ -273,9 +283,23 @@ export default function ActivityEditor({ classId, paths: passedPaths, onChange, 
   const [libraryLoading, setLibraryLoading] = useState(false);
   const [libraryError, setLibraryError] = useState(null);
   
-  // Organization scoping & filter states
-  const [activeOrgId, setActiveOrgId] = useState(user?.organizationId || null);
-  const [activeOrgName, setActiveOrgName] = useState(user?.organizationName || '');
+  // Default to the organization that the user is assigned to in the user list
+  const userOrgId = user?.organizationId || null;
+  const userOrgName = user?.organizationName || '';
+
+  // Board's own organization (used for publishing and initial library view)
+  const [boardOrgId, setBoardOrgId] = useState(userOrgId || propOrgId || null);
+  const [boardOrgName, setBoardOrgName] = useState(userOrgName || propOrgName || '');
+
+  // Filter organization inside the library modal:
+  // For teachers: strictly locked to userOrgId.
+  // For admins: can view propOrgId or userOrgId.
+  const [filterOrgId, setFilterOrgId] = useState(
+    user?.role === 'admin' ? (propOrgId || userOrgId || null) : userOrgId
+  );
+  const [filterOrgName, setFilterOrgName] = useState(
+    user?.role === 'admin' ? (propOrgName || userOrgName || '') : userOrgName
+  );
   const [organizationsList, setOrganizationsList] = useState([]);
   const [selectedTypeFilter, setSelectedTypeFilter] = useState('All');
   const [selectedAuthorFilter, setSelectedAuthorFilter] = useState('All');
@@ -286,11 +310,27 @@ export default function ActivityEditor({ classId, paths: passedPaths, onChange, 
   const [loading, setLoading] = useState(false);
   const [showDocImporter, setShowDocImporter] = useState(false);
 
-  // Sync activeOrgId with user if user changes
+  // Sync board and filter org with incoming props
+  useEffect(() => {
+    if (propOrgId !== undefined) {
+      if (user?.role === 'admin') {
+        setBoardOrgId(userOrgId || propOrgId);
+        setBoardOrgName(userOrgName || propOrgName || '');
+        setFilterOrgId(propOrgId);
+        setFilterOrgName(propOrgName || '');
+      }
+    }
+  }, [propOrgId, propOrgName, user?.role, userOrgId, userOrgName]);
+
+  // Sync with user's assigned organization from user list when user loads
   useEffect(() => {
     if (user?.organizationId) {
-      setActiveOrgId(user.organizationId);
-      setActiveOrgName(user.organizationName || '');
+      setBoardOrgId(user.organizationId);
+      setBoardOrgName(user.organizationName || '');
+      if (user?.role !== 'admin' || !filterOrgId) {
+        setFilterOrgId(user.organizationId);
+        setFilterOrgName(user.organizationName || '');
+      }
     }
   }, [user]);
 
@@ -356,6 +396,22 @@ export default function ActivityEditor({ classId, paths: passedPaths, onChange, 
         setLoading(true);
         const classDoc = await backend.getClass(classId);
         if (classDoc) {
+          if (classDoc.organizationId) {
+            setBoardOrgId(classDoc.organizationId);
+            setFilterOrgId(prev => prev || classDoc.organizationId);
+            if (classDoc.organizationName) {
+              setBoardOrgName(classDoc.organizationName);
+              setFilterOrgName(prev => prev || classDoc.organizationName);
+            } else {
+              backend.getOrganization(classDoc.organizationId).then(org => {
+                if (org?.name) {
+                  setBoardOrgName(org.name);
+                  setFilterOrgName(prev => prev || org.name);
+                }
+              }).catch(() => {});
+            }
+          }
+
           let paths = classDoc.activities && classDoc.activities.length > 0
             ? classDoc.activities
             : DEFAULT_PATHS;
@@ -410,15 +466,38 @@ export default function ActivityEditor({ classId, paths: passedPaths, onChange, 
     setLibraryLoading(true);
     setLibraryError(null);
     setShowLibrary(true);
-    const orgToFetch = orgIdOverride !== undefined ? orgIdOverride : (activeOrgId || user?.organizationId || null);
+
+    const isUserAdmin = user?.role === 'admin' || user?.email?.toLowerCase() === 'matthew.harbert@lcps.org';
+
+    // If teacher: strictly locked to userOrgId (cannot query other organizations)
+    // If admin: can view orgIdOverride, filterOrgId, or userOrgId
+    let effectiveOrgId = null;
+    if (typeof orgIdOverride === 'string' && orgIdOverride.trim() !== '') {
+      effectiveOrgId = orgIdOverride.trim();
+    } else if (isUserAdmin) {
+      effectiveOrgId = filterOrgId || propOrgId || userOrgId || null;
+    } else {
+      effectiveOrgId = userOrgId;
+    }
+
     try {
       const [activities, orgs] = await Promise.all([
-        backend.getPublicActivities(orgToFetch),
-        user?.role === 'admin' ? backend.getOrganizations() : Promise.resolve([])
+        backend.getPublicActivities(effectiveOrgId),
+        isUserAdmin ? backend.getOrganizations() : Promise.resolve([])
       ]);
       setLibraryActivities(activities || []);
       if (orgs && orgs.length > 0) {
         setOrganizationsList(orgs);
+        if (effectiveOrgId) {
+          const matched = orgs.find(o => o.id === effectiveOrgId);
+          if (matched) {
+            setFilterOrgId(matched.id);
+            setFilterOrgName(matched.name);
+          }
+        } else if (isUserAdmin && !filterOrgId && orgs[0]) {
+          setFilterOrgId(orgs[0].id);
+          setFilterOrgName(orgs[0].name);
+        }
       }
     } catch (err) {
       console.error("Error loading library activities:", err);
@@ -429,10 +508,11 @@ export default function ActivityEditor({ classId, paths: passedPaths, onChange, 
   };
 
   const handleOrgChange = (newOrgId) => {
-    setActiveOrgId(newOrgId || null);
-    const matched = organizationsList.find(o => o.id === newOrgId);
-    setActiveOrgName(matched ? matched.name : (newOrgId ? '' : 'All Organizations'));
-    loadLibrary(newOrgId || null);
+    const orgId = newOrgId || null;
+    setFilterOrgId(orgId);
+    const matched = organizationsList.find(o => o.id === orgId);
+    setFilterOrgName(matched ? matched.name : (orgId ? '' : 'All Organizations'));
+    loadLibrary(orgId);
   };
 
   const handleDeleteFromLibrary = async (activityId, activityTitle) => {
@@ -518,9 +598,16 @@ export default function ActivityEditor({ classId, paths: passedPaths, onChange, 
   const handleSave = async () => {
     setLoading(true);
     try {
-      await backend.saveClassActivities(classId, learningPaths);
-      alert('Activities saved successfully!');
-      if (onSave) onSave();
+      if (classId) {
+        await backend.saveClassActivities(classId, learningPaths);
+        alert('Activities saved successfully!');
+        if (onSave) onSave(learningPaths);
+      } else if (onSave) {
+        await onSave(learningPaths);
+      } else {
+        if (onChange) onChange(learningPaths);
+        alert('Choice board activities updated! Remember to click "Save Template" below to finalize changes.');
+      }
     } catch (error) {
       alert('Error saving activities: ' + error.message);
     }
@@ -528,17 +615,20 @@ export default function ActivityEditor({ classId, paths: passedPaths, onChange, 
   };
 
   const handleImport = (activity, targetPathId) => {
+    const cleanId = `${targetPathId}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
     updateLearningPaths(prev => prev.map(path => {
       if (path.id !== targetPathId) return path;
       const newActivity = {
-        ...activity,
-        id: `${targetPathId}-${Date.now()}`,
+        id: cleanId,
+        title: activity.title || 'Untitled Activity',
+        desc: activity.desc || '',
+        type: activity.type || 'Low Tech',
+        xp: typeof activity.xp === 'number' ? activity.xp : (parseInt(activity.xp) || 100),
         steps: normalizeSteps(activity.steps),
+        proTip: activity.proTip || '',
+        categoryTag: activity.categoryTag || ''
       };
-      delete newActivity.publishedAt;
-      delete newActivity.authorId;
-      delete newActivity.authorName;
-      return { ...path, options: [...path.options, newActivity] };
+      return { ...path, options: [...(path.options || []), newActivity] };
     }));
     const targetPath = learningPaths.find(p => p.id === targetPathId);
     setImportedToast(`Imported "${activity.title}" to ${targetPath?.title || 'choice board'}!`);
@@ -546,15 +636,47 @@ export default function ActivityEditor({ classId, paths: passedPaths, onChange, 
   };
 
   const handlePublish = async (activity) => {
-    const orgDisplay = activeOrgName || user?.organizationName || 'your organization';
-    if (!window.confirm(`Publish "${activity.title}" to the ${orgDisplay} library?`)) return;
+    // Default to the organization that the user is assigned to in the user list
+    let publishOrgId = user?.organizationId || null;
+    let publishOrgName = user?.organizationName || '';
+
+    // If an admin has no assigned organization in the user list, allow fallback to boardOrgId or prompt
+    if (!publishOrgId && user?.role === 'admin') {
+      publishOrgId = boardOrgId || null;
+      publishOrgName = boardOrgName || '';
+
+      if (!publishOrgId && organizationsList.length > 0) {
+        const chosenOrgId = window.prompt(
+          `Publishing to library requires an organization.\nEnter Organization ID:\n` +
+          organizationsList.map(o => `${o.name} -> ID: ${o.id}`).join('\n')
+        );
+        if (!chosenOrgId) return;
+        publishOrgId = chosenOrgId.trim();
+        const matched = organizationsList.find(o => o.id === publishOrgId);
+        publishOrgName = matched ? matched.name : '';
+      }
+    }
+
+    if (!publishOrgId) {
+      alert('Cannot publish activity: Your account is not assigned to an organization in the user list. Please contact an administrator to assign your account.');
+      return;
+    }
+
+    const orgDisplay = publishOrgName || 'your organization';
+    if (!window.confirm(`Publish "${activity.title}" to the ${orgDisplay} library?\n\nNote: This will only be visible to users in ${orgDisplay}.`)) {
+      return;
+    }
+
     try {
       const pathObj = learningPaths.find(p => p.id === editingPathId);
       await backend.publishActivity({
         ...activity,
         categoryTag: pathObj?.title || ''
-      }, activeOrgId || user?.organizationId, activeOrgName || user?.organizationName);
-      alert(`"${activity.title}" published to ${orgDisplay} library!`);
+      }, publishOrgId, publishOrgName);
+      alert(`"${activity.title}" published to ${orgDisplay} library! It is only visible to users in ${orgDisplay}.`);
+      if (showLibrary) {
+        loadLibrary(publishOrgId);
+      }
     } catch (error) {
       alert('Error publishing: ' + error.message);
     }
@@ -704,7 +826,8 @@ export default function ActivityEditor({ classId, paths: passedPaths, onChange, 
             <FileText className="w-4 h-4" aria-hidden="true" /> Import from Doc / Google Doc
           </button>
           <button
-            onClick={loadLibrary}
+            type="button"
+            onClick={() => loadLibrary(filterOrgId || propOrgId)}
             className="flex items-center gap-2 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-xs transition-colors shadow"
           >
             <BookOpen className="w-4 h-4" aria-hidden="true" /> Browse Library
@@ -751,15 +874,15 @@ export default function ActivityEditor({ classId, paths: passedPaths, onChange, 
                     <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
                       {filteredLibraryActivities.length} of {libraryActivities.length} {libraryActivities.length === 1 ? 'activity' : 'activities'}
                     </span>
-                    {(activeOrgName || user?.organizationName) && (
+                    {(user?.role === 'admin' ? (filterOrgName || userOrgName) : (userOrgName || 'My Organization')) && (
                       <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-purple-950/80 text-purple-300 border border-purple-800/60 flex items-center gap-1">
                         <Building2 className="w-3.5 h-3.5 text-purple-400" />
-                        {activeOrgName || user?.organizationName}
+                        {user?.role === 'admin' ? (filterOrgName || userOrgName) : (userOrgName || 'My Organization')}
                       </span>
                     )}
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Browse, organize, and import shared activities for your school into your choice boards.
+                    Browse and import activities shared by teachers in your organization.
                   </p>
                 </div>
               </div>
@@ -771,11 +894,10 @@ export default function ActivityEditor({ classId, paths: passedPaths, onChange, 
                     <Building2 className="w-3.5 h-3.5 text-yellow-400" />
                     <span className="text-slate-400 font-semibold">Org:</span>
                     <select
-                      value={activeOrgId || ''}
+                      value={filterOrgId || ''}
                       onChange={(e) => handleOrgChange(e.target.value)}
                       className="bg-transparent text-white font-bold outline-none cursor-pointer text-xs"
                     >
-                      <option value="" className="bg-slate-900">All Organizations</option>
                       {organizationsList.map(org => (
                         <option key={org.id} value={org.id} className="bg-slate-900">
                           {org.name}
@@ -897,7 +1019,15 @@ export default function ActivityEditor({ classId, paths: passedPaths, onChange, 
 
             {/* Activities Content Area */}
             <div className="flex-1 overflow-y-auto pr-1 pt-3">
-              {libraryLoading ? (
+              {!user?.organizationId && user?.role !== 'admin' ? (
+                <div className="h-full flex flex-col items-center justify-center py-12 text-center p-8 bg-slate-900/40 rounded-2xl border border-amber-500/30">
+                  <Building2 className="w-12 h-12 text-amber-500/80 mb-3" />
+                  <h4 className="text-base font-bold text-white mb-1">No Organization Assigned</h4>
+                  <p className="text-xs text-slate-300 max-w-md">
+                    Your account is not currently assigned to an organization in the user list. Activities in the library are private and only visible to users in their respective organization. Please contact an administrator to assign your account to an organization.
+                  </p>
+                </div>
+              ) : libraryLoading ? (
                 <div className="h-full flex flex-col items-center justify-center py-12 text-center">
                   <Loader2 className="w-8 h-8 text-blue-400 animate-spin mb-3" />
                   <p className="text-sm font-semibold text-slate-300">Loading organization library activities...</p>
@@ -920,7 +1050,7 @@ export default function ActivityEditor({ classId, paths: passedPaths, onChange, 
                     <BookOpen className="w-7 h-7" />
                   </div>
                   <h4 className="text-base font-bold text-slate-200 mb-1">
-                    {libraryActivities.length === 0 ? "No activities published yet for this organization" : "No matching activities"}
+                    {libraryActivities.length === 0 ? "No activities published yet for your organization" : "No matching activities"}
                   </h4>
                   <p className="text-xs text-slate-400 max-w-sm mb-4">
                     {libraryActivities.length === 0
@@ -957,6 +1087,12 @@ export default function ActivityEditor({ classId, paths: passedPaths, onChange, 
                                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 flex items-center gap-1">
                                   <Tag className="w-3 h-3 text-slate-400" />
                                   {activity.categoryTag}
+                                </span>
+                              )}
+                              {activity.organizationName && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-950/60 text-purple-300 border border-purple-800/40 flex items-center gap-1">
+                                  <Building2 className="w-3 h-3 text-purple-400" />
+                                  {activity.organizationName}
                                 </span>
                               )}
                             </div>
